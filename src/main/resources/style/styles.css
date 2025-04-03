@@ -1,0 +1,37 @@
+#fileDropArea1 {
+    -fx-border-color: #004A77;       /* Стандартный контур */
+    -fx-border-width: 2;
+    -fx-border-radius: 2;
+    -fx-text-fill: #a9b7c6;
+}
+
+#fileDropArea1:focused {
+    -fx-border-color: #004A77;       /* Контур при фокусе */
+    -fx-border-width: 1;          /* Толщина контура при фокусе */
+    -fx-border-radius: 2;
+}
+
+#fileDropArea2 {
+    -fx-border-color: #219321;       /* Стандартный контур */
+    -fx-border-width: 2;
+    -fx-border-radius: 2;
+    -fx-text-fill: #a9b7c6;
+}
+
+#fileDropArea2:focused {
+    -fx-border-color: #219321;       /* Контур при фокусе */
+    -fx-border-width: 1;          /* Толщина контура при фокусе */
+    -fx-border-radius: 2;
+}
+#outputTextFlow {
+    -fx-padding: 10px; /* Внутренние отступы внутри TextFlow */
+}
+.centered-text-flow {
+    -fx-text-alignment: center;
+    -fx-padding: 20px;
+
+}
+
+.progress-indicator {
+    -fx-progress-color: #004A77;
+}

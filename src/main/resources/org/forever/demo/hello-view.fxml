@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.text.TextFlow?>
+<?import javafx.scene.control.ScrollPane?>
+
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.image.ImageView?>
+
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.control.Tooltip?>
+<HBox spacing="20.0" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="org.forever.demo.HelloController"
+      HBox.hgrow="ALWAYS">
+    <VBox alignment="CENTER" spacing="20.0">
+        <padding>
+            <Insets bottom="20.0" left="20.0" right="20.0" top="10.0"/>
+        </padding>
+        <!-- Добавляем растягивающийся пробел -->
+        <Region VBox.vgrow="ALWAYS" />
+        <ImageView fx:id="previewImage" fitWidth="150" preserveRatio="true" />
+        <TextArea fx:id="fileDropArea1" text="Первый файл" prefHeight="70" prefWidth="150" wrapText="true"/>
+        <TextArea fx:id="fileDropArea2" text="Второй файл" prefHeight="70" prefWidth="150" wrapText="true"/>
+        <HBox spacing="10.0" alignment="CENTER">
+            <Button fx:id="compareButton" text="Сравнить" onAction="#handleCompareButtonAction"/>
+            <Button fx:id="clearButton" style="-fx-font-size: 16px;"/>
+        </HBox>
+        <CheckBox fx:id="compareByAbsoluteValueCheckBox" text="По модулю" />
+        <Button fx:id="printButton" style="-fx-font-size: 16px;" onAction="#handlePrintButtonAction"/>
+
+        <!-- Добавляем растягивающийся пробел -->
+        <Region VBox.vgrow="ALWAYS" />
+        <!-- Версия программы -->
+        <Label fx:id="versionLabel" text="Версия 1.0.0"
+               style="-fx-font-size: 10px; -fx-text-fill: #808080;"
+               alignment="CENTER"
+               maxWidth="Infinity"
+               onMouseClicked="#handleVersionClick"/>
+    </VBox>
+
+    <!-- Область с прокруткой для TextFlow -->
+    <SplitPane HBox.hgrow="ALWAYS">
+        <ScrollPane prefHeight="400" minWidth="100" fitToWidth="true" HBox.hgrow="ALWAYS">
+            <TextFlow fx:id="outputTextFlow"/>
+        </ScrollPane>
+    </SplitPane>
+</HBox>
