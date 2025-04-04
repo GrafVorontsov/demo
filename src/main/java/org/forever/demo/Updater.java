@@ -605,24 +605,3 @@ private static void restartApplication() throws IOException {
         });
     }
 }
-
-/*
-код метода restartApplication не годится вообще потому что
-вот команда которая запускает приложение
-в Linux
-#!/bin/bash
-
-java --module-path liblinux --add-modules javafx.controls,javafx.fxml -jar demo-1.0-SNAPSHOT.jar
-
-
-в Windows
-@echo off
-
-REM Compare.bat
-
-cd %~dp0
-
-start javaw --module-path libwindows --add-modules javafx.controls,javafx.fxml -jar demo-1.0-SNAPSHOT.jar
-
-exit
- */

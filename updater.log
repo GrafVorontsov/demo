@@ -38,3 +38,23 @@ INFO: Текущая версия: 5.6.2
 INFO: Найдено обновление: 5.6.3
 апр. 04, 2025 1:25:06 PM org.forever.demo.Updater showUpdateDialog
 INFO: Пользователь отказался от обновления до версии 5.6.3
+апр. 04, 2025 3:28:36 PM org.forever.demo.Updater <clinit>
+INFO: Логгер успешно инициализирован
+апр. 04, 2025 3:28:36 PM org.forever.demo.Updater checkForUpdatesInternal
+INFO: Начало проверки обновлений
+апр. 04, 2025 3:28:36 PM org.forever.demo.Updater getLatestVersion
+INFO: Запрос к URL для проверки версии: https://raw.githubusercontent.com/GrafVorontsov/demo/master/version.txt
+апр. 04, 2025 3:28:40 PM org.forever.demo.Updater getLatestVersion
+INFO: Код ответа для version.txt: 200
+апр. 04, 2025 3:28:40 PM org.forever.demo.Updater getLatestVersion
+INFO: Получена версия: 5.6.3
+апр. 04, 2025 3:28:40 PM org.forever.demo.Updater checkForUpdatesInternal
+INFO: Последняя версия: 5.6.3
+апр. 04, 2025 3:28:40 PM org.forever.demo.Updater getCurrentVersion
+INFO: Текущая версия приложения: 5.6.2
+апр. 04, 2025 3:28:40 PM org.forever.demo.Updater checkForUpdatesInternal
+INFO: Текущая версия: 5.6.2
+апр. 04, 2025 3:28:40 PM org.forever.demo.Updater checkForUpdatesInternal
+INFO: Найдено обновление: 5.6.3
+апр. 04, 2025 3:28:44 PM org.forever.demo.Updater showUpdateDialog
+INFO: Пользователь отказался от обновления до версии 5.6.3
