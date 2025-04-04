@@ -73,6 +73,9 @@ public class ChangeLog {
                 "Изменение цветового дизайна приложения",
                 "Настройка меню \"История изменений\""
         ), Color.web("#C7C7C7"), null);
+        addChange("6.0.0", List.of(
+                "Добавлена функция автообновления"
+        ), Color.web("#C7C7C7"), null);
     }
 
     public static List<ChangeEntry> getChanges() {

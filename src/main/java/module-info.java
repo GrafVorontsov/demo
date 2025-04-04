@@ -18,6 +18,7 @@ module org.forever.demo {
     requires de.jensd.fx.glyphs.fontawesome;
     requires javafx.controls;
     requires java.logging;
+    requires java.net.http;
 
     exports org.forever.demo;
     opens org.forever.demo to javafx.fxml, org.apache.commons.compress;
