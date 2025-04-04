@@ -1,0 +1,81 @@
+.root {
+    -fx-background-color: #2b2b2b;
+    -fx-font-family: "JetBrains Mono", monospace;
+    -fx-font-size: 14px;
+}
+
+.text {
+    -fx-fill: #a9b7c6;
+}
+
+.scroll-pane {
+    -fx-background: #1e1f22;
+
+}
+
+.scroll-pane .content {
+    -fx-background-color: #1e1f22;
+    -fx-padding: 10px; /* Отступ внутри ScrollPane */
+}
+
+.scroll-pane .text-flow .text {
+    -fx-fill: #a9b7c6; /* Цвет текста в TextFlow */
+}
+
+.button .text {
+    -fx-fill: #E3E3E3;
+}
+
+.button {
+    -fx-background-color: #219321;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-border-radius: 5px;
+    -fx-padding: 5px 10px;
+}
+.button:hover {
+    -fx-background-color: #197a19;
+}
+.button:pressed {
+    -fx-background-color: #15571b;
+}
+
+.text-field {
+    -fx-background-color: #3c3f41;
+    -fx-text-fill: #a9b7c6;
+    -fx-border-color: #515658;
+    -fx-border-radius: 5px;
+    -fx-padding: 5px;
+}
+.scroll-bar {
+    -fx-background-color: #2b2b2b; /* Цвет фона трека (track) */
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #44b044; /* Цвет кнопки (thumb) */
+    -fx-background-radius: 5; /* Скругление углов кнопки */
+}
+
+.scroll-bar .track {
+    -fx-background-color: #3c3f41; /* Цвет трека, по которому движется кнопка */
+}
+
+#clearButton {
+    -fx-background-color: #d56949;
+}
+#clearButton:hover {
+    -fx-background-color: #b3340f;
+}
+#clearButton:pressed {
+    -fx-background-color: #351703;
+}
+
+#printButton {
+    -fx-background-color: #004A77;
+}
+#printButton:hover {
+    -fx-background-color: #3574f0;
+}
+#printButton:pressed {
+    -fx-background-color: #1967D2;
+}

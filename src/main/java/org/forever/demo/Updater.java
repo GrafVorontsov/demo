@@ -156,7 +156,7 @@ public class Updater {
 
     private static Button createCancelButton() {
         Button cancelButton = new Button("Отмена");
-        cancelButton.setOnAction(e -> {
+        cancelButton.setOnAction(_ -> {
             logger.info("Загрузка обновления отменена пользователем");
             progressStage.close();
             // Очистка частично загруженного файла
@@ -313,18 +313,12 @@ public class Updater {
         };
 
         // Обработчики событий прогресса
-        task.messageProperty().addListener((obs, oldValue, newValue) -> {
-            Platform.runLater(() -> statusLabel.setText(newValue));
-        });
+        task.messageProperty().addListener((_, _, newValue) -> Platform.runLater(() -> statusLabel.setText(newValue)));
 
-        task.progressProperty().addListener((obs, oldValue, newValue) -> {
-            Platform.runLater(() -> {
-                progressBar.setProgress(newValue.doubleValue());
-            });
-        });
+        task.progressProperty().addListener((_, _, newValue) -> Platform.runLater(() -> progressBar.setProgress(newValue.doubleValue())));
 
         // Обработчик завершения задачи
-        task.setOnSucceeded(event -> {
+        task.setOnSucceeded(_ -> {
             Boolean result = task.getValue();
             Platform.runLater(() -> {
                 progressStage.close();
@@ -350,7 +344,7 @@ public class Updater {
             });
         });
 
-        task.setOnFailed(event -> {
+        task.setOnFailed(_ -> {
             Throwable exception = task.getException();
             logger.log(Level.SEVERE, "Ошибка при выполнении задачи загрузки", exception);
             Platform.runLater(() -> {
