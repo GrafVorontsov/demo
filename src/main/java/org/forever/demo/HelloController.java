@@ -166,7 +166,7 @@ public class HelloController {
 
     public String getApplicationVersion() {
         // Получение версии из свойств, манифеста или константы
-        return "5.6.2";
+        return "6.0.0";
     }
 
     // Method to update the compare button state
@@ -459,14 +459,14 @@ public class HelloController {
             colorModeCheckBox.setSelected(false); // По умолчанию Ч/Б режим
 
             // Обработчик для кнопки печати
-            printButton.setOnAction(e -> {
+            printButton.setOnAction(_ -> {
                 previewStage.close();
                 boolean colorMode = colorModeCheckBox.isSelected();
                 printContent(contentToPrint, colorMode, pageLayout);
             });
 
             // Обработчик для кнопки отмены
-            cancelButton.setOnAction(e -> previewStage.close());
+            cancelButton.setOnAction(_ -> previewStage.close());
 
             // Создаем панель с кнопками и чекбоксом
             HBox buttonBox = new HBox(20);
@@ -488,7 +488,6 @@ public class HelloController {
         } catch (Exception e) {
             showAlert(AlertType.ERROR, "Ошибка", "Ошибка предварительного просмотра",
                     "Не удалось создать окно предварительного просмотра: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -499,14 +498,12 @@ public class HelloController {
         List<Node> pages = new ArrayList<>();
 
         // Для TextFlow разделяем текст на страницы
-        if (originalContent instanceof TextFlow) {
-            TextFlow textFlow = (TextFlow) originalContent;
+        if (originalContent instanceof TextFlow textFlow) {
 
             // Создаем копию контента для обработки
             TextFlow workingCopy = new TextFlow();
             for (Node child : textFlow.getChildren()) {
-                if (child instanceof Text) {
-                    Text originalText = (Text) child;
+                if (child instanceof Text originalText) {
                     Text newText = new Text(originalText.getText());
                     newText.setStyle(originalText.getStyle());
                     workingCopy.getChildren().add(newText);
@@ -517,7 +514,7 @@ public class HelloController {
             workingCopy.setPrefWidth(pageLayout.getPrintableWidth());
 
             // Создаем временную сцену для расчета разметки
-            Scene tempScene = new Scene(new Group(workingCopy));
+            new Scene(new Group(workingCopy));
 
             // Считаем высоту страницы для печати (с учетом полей)
             double pageHeight = pageLayout.getPrintableHeight();
@@ -571,7 +568,7 @@ public class HelloController {
     private int getCharIndexAtY(TextFlow textFlow, double y) {
         // Помещаем в сцену для корректных расчетов
         if (!textFlow.isManaged()) {
-            Scene tempScene = new Scene(new Group(textFlow));
+            new Scene(new Group(textFlow)); // Просто создаём, без переменной
             textFlow.applyCss();
             textFlow.layout();
         }
@@ -731,7 +728,6 @@ public class HelloController {
             } catch (Exception e) {
                 showAlert(AlertType.ERROR, "Ошибка", "Ошибка при подготовке печати",
                         "Произошла ошибка: " + e.getMessage());
-                e.printStackTrace();
             }
         }
     }
