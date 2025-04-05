@@ -47,20 +47,67 @@ public class Updater {
 
     private static final IntegerProperty downloadPercent = new SimpleIntegerProperty(0);
 
+    private static final String LOG_DIR = "logs";
+    private static final String[] LOG_FILES = {
+            "updater.log",
+            "external_updater.log",
+            "updater_launch.log",
+            "restart.log"
+    };
+
+    // Удалить файл update.log вне папки logs, если он существует
+    private static final String OUTSIDE_LOG_FILE = "update.log";
+
     static {
-        // Инициализация логгера
+        logger.setUseParentHandlers(false);
+        File logDir = new File(LOG_DIR);
+        if (!logDir.exists()) {
+            if (logDir.mkdirs()) {
+                System.out.println("Создана папка для логов: " + logDir.getAbsolutePath());
+            } else {
+                System.err.println("Не удалось создать папку для логов: " + logDir.getAbsolutePath());
+            }
+        }
+
+        // Очистить все лог-файлы
+        for (String logFile : LOG_FILES) {
+            cleanupLogFile(new File(logDir, logFile).getPath());
+        }
+
+        // Дополнительно проверяем и удаляем updater.log в корневом каталоге
+        cleanupLogFile("updater.log");
+
         try {
-            FileHandler fileHandler = new FileHandler("updater.log", true);
-            fileHandler.setFormatter(new SimpleFormatter());
+            File logFile = new File(logDir, "updater.log");
+            FileHandler fileHandler = new FileHandler(logFile.getAbsolutePath(), false);
+            SimpleFormatter formatter = new SimpleFormatter();
+            fileHandler.setFormatter(formatter);
             logger.addHandler(fileHandler);
             logger.info("Логгер успешно инициализирован");
         } catch (IOException e) {
             System.err.println("Ошибка при инициализации логгера: " + e.getMessage());
-            // Добавляем обработчик для консольного вывода, чтобы логи не пропали
             ConsoleHandler consoleHandler = new ConsoleHandler();
             consoleHandler.setFormatter(new SimpleFormatter());
             logger.addHandler(consoleHandler);
             logger.log(Level.SEVERE, "Не удалось создать файловый обработчик логов", e);
+        }
+    }
+
+    /**
+     * Очищает указанный файл лога, если он существует
+     */
+    private static void cleanupLogFile(String filePath) {
+        try {
+            File logFile = new File(filePath);
+            if (logFile.exists()) {
+                if (logFile.delete()) {
+                    System.out.println("Удален старый файл логов: " + filePath);
+                } else {
+                    System.err.println("Не удалось удалить старый файл логов: " + filePath);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Ошибка при очистке файла логов: " + e.getMessage());
         }
     }
 
@@ -371,7 +418,8 @@ public class Updater {
     }
 
     private static String getLatestVersion() {
-        logger.info("Запрос к URL для проверки версии: " + VERSION_URL);
+        //logger.info("Запрос к URL для проверки версии: " + VERSION_URL);
+        logger.info("Запрос к URL для проверки версии.");
 
         try {
             HttpClient client = HttpClient.newBuilder()
@@ -450,148 +498,45 @@ public class Updater {
     }
 
     private static void applyUpdate() {
-        logger.info("Начало применения обновления...");
-        Path currentJar = Paths.get(JAR_NAME);
-        Path backupJar = Paths.get("backup_" + JAR_NAME);
-        Path newJar = Paths.get(UPDATE_FILE);
+        logger.info("Beginning update application...");
 
         try {
-            // Проверяем существование файлов
-            logger.info("Текущий JAR существует: " + Files.exists(currentJar));
-            logger.info("Новый JAR существует: " + Files.exists(newJar));
-
-            // Удаляем старый бэкап, если он есть
-            if (Files.exists(backupJar)) {
-                Files.delete(backupJar);
-                logger.info("Удален старый бэкап: " + backupJar);
+            // Check that downloaded update exists
+            Path updateJar = Paths.get(UPDATE_FILE);
+            if (!Files.exists(updateJar)) {
+                throw new IOException("Update file not found: " + updateJar);
             }
 
-            // Переименовываем текущий JAR в backup
-            Files.move(currentJar, backupJar, StandardCopyOption.REPLACE_EXISTING);
-            logger.info("Текущий JAR перемещен в бэкап: " + backupJar);
+            // Launch external updater and exit this application
+            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
 
-            // Перемещаем скачанный JAR в рабочую директорию
-            Files.move(newJar, currentJar, StandardCopyOption.REPLACE_EXISTING);
-            logger.info("Новый JAR установлен: " + currentJar);
+            // Build command to launch external updater
+            List<String> command = new ArrayList<>();
+            command.add(javaBin);
+            command.add("-cp");
+            command.add(JAR_NAME); // Use current jar for classpath
+            command.add("org.forever.demo.ExternalUpdater");
+            command.add("3"); // Wait 3 seconds before starting update
 
-            // Проверяем, что файлы на месте после перемещения
-            logger.info("После обновления - JAR существует: " + Files.exists(currentJar));
-            logger.info("После обновления - Бэкап существует: " + Files.exists(backupJar));
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.redirectErrorStream(true);
+            builder.redirectOutput(new File(LOG_DIR, "updater_launch.log"));
 
-            // Запускаем приложение с новым JAR
-            restartApplication();
-        } catch (IOException e) {
-            // Используем более надежное логирование вместо e.printStackTrace()
-            logger.log(Level.SEVERE, "Ошибка при применении обновления", e);
+            // Log full launch command
+            logger.info("Launching external updater: " + String.join(" ", command));
 
-            // В случае ошибки восстанавливаем из бэкапа, если он существует
-            try {
-                if (Files.exists(backupJar) && !Files.exists(currentJar)) {
-                    logger.info("Восстановление из бэкапа после ошибки...");
-                    Files.move(backupJar, currentJar, StandardCopyOption.REPLACE_EXISTING);
-                    logger.info("Восстановление выполнено успешно");
-                }
-            } catch (IOException restoreEx) {
-                // Используем более надежное логирование вместо restoreEx.printStackTrace()
-                logger.log(Level.SEVERE, "Ошибка при восстановлении из бэкапа", restoreEx);
-            }
+            // Start updater process
+            Process process = builder.start();
+            builder.directory(new File("."));  // Ensure working directory is set
 
-            showErrorAlert("Ошибка обновления", "Не удалось применить обновление: " + e.getMessage());
+            // Exit current application to release file lock
+            logger.info("External updater launched, exiting application...");
+            System.exit(0);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error launching external updater", e);
+            showErrorAlert("Update Error", "Failed to launch updater: " + e.getMessage());
         }
     }
-
-private static void restartApplication() throws IOException {
-    logger.info("Перезапуск приложения...");
-    
-    File jarFile = new File(JAR_NAME);
-    if (!jarFile.exists()) {
-        String errorMsg = "Файл JAR не найден: " + jarFile.getAbsolutePath();
-        logger.severe(errorMsg);
-        throw new IOException(errorMsg);
-    }
-    
-    String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
-    
-    // Проверяем операционную систему для выбора правильной конфигурации
-    boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
-    
-    // Определяем путь к библиотекам JavaFX в зависимости от ОС
-    String libPath = isWindows ? "libwindows" : "liblinux";
-    
-    // Проверяем существование директории с библиотеками
-    File libDir = new File(libPath);
-    if (!libDir.exists()) {
-        logger.warning("Директория с библиотеками не найдена: " + libDir.getAbsolutePath());
-        logger.info("Попытка использовать относительный путь");
-    }
-    
-    // Проверяем существование исполняемого файла Java
-    File javaFile = new File(javaBin);
-    if (!javaFile.exists()) {
-        logger.warning("Java исполняемый файл не найден по пути: " + javaBin);
-        // Используем команду для запуска без полного пути
-        javaBin = isWindows ? "javaw" : "java";
-    }
-    
-    logger.info("Используем Java: " + javaBin);
-    logger.info("Запускаем JAR: " + jarFile.getAbsolutePath());
-    logger.info("Используем библиотеки JavaFX из: " + libPath);
-    
-    try {
-        // Выводим информацию о текущей директории
-        logger.info("Текущая директория: " + new File(".").getAbsolutePath());
-        
-        // Построение команды запуска с учетом JavaFX модулей
-        List<String> command = new ArrayList<>();
-        command.add(javaBin);
-        command.add("--module-path");
-        command.add(libPath);
-        command.add("--add-modules");
-        command.add("javafx.controls,javafx.fxml");
-        command.add("-jar");
-        command.add(jarFile.getAbsolutePath());
-        
-        // Создаем ProcessBuilder с нашей командой
-        ProcessBuilder builder = new ProcessBuilder(command);
-        
-        // Перенаправляем вывод для отладки
-        builder.redirectErrorStream(true);
-        File logFile = new File("restart.log");
-        if (logFile.exists()) {
-            if (!logFile.delete()) {
-                logger.warning("Не удалось удалить файл: " + logFile.getAbsolutePath());
-            }
-        }
-        builder.redirectOutput(logFile);
-        
-        // Логируем полную команду запуска
-        logger.info("Команда запуска: " + String.join(" ", command));
-        
-        // Запускаем новый процесс
-        Process process = builder.start();
-        
-        // Даем небольшую паузу, чтобы процесс успел стартовать
-        Thread.sleep(1000);
-        
-        // Проверяем, что процесс запустился
-        if (process.isAlive()) {
-            logger.info("Новый процесс запущен успешно");
-        } else {
-            logger.warning("Новый процесс не запустился, код возврата: " + process.exitValue());
-        }
-        
-        // Добавляем задержку перед выходом из приложения
-        logger.info("Ожидание 3 секунды перед выходом...");
-        Thread.sleep(3000);
-        
-        // Завершаем текущий процесс
-        logger.info("Завершение текущего процесса...");
-        System.exit(0);
-    } catch (Exception e) {
-        logger.log(Level.SEVERE, "Ошибка при перезапуске приложения", e);
-        throw new IOException("Ошибка при перезапуске: " + e.getMessage(), e);
-    }
-}
 
     // Показать диалог с ошибкой
     private static void showErrorAlert(String header, String content) {
