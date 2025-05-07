@@ -76,6 +76,9 @@ public class ChangeLog {
         addChange("6.0.0", List.of(
                 "Добавлена функция автообновления"
         ), Color.web("#C7C7C7"), null);
+        addChange("6.0.1", List.of(
+                "Исправление функции определения формата файла"
+        ), Color.web("#C7C7C7"), null);
     }
 
     public static List<ChangeEntry> getChanges() {
