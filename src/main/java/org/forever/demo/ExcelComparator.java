@@ -2,7 +2,8 @@ package org.forever.demo;
 
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
-import org.apache.poi.hssf.OldExcelFormatException;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -10,124 +11,324 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ExcelComparator {
+    /*
+        public static Map<String, Map<String, List<List<String>>>> parseFiles(File[] files, ComparisonSettings settings) {
+            Map<String, Map<String, List<List<String>>>> megaMap = new LinkedHashMap<>();
 
-    public static Map<String, Map<String, List<List<String>>>> parseFiles(File[] files, ComparisonSettings settings) {
-        Map<String, Map<String, List<List<String>>>> megaMap = new LinkedHashMap<>();
+            for (File file : files) {
+                try (FileInputStream fis = new FileInputStream(file);
+                     Workbook workbook = file.getName().endsWith(".xlsx") ? new XSSFWorkbook(fis) : new HSSFWorkbook(fis)) {
 
-        for (File file : files) {
-            try (FileInputStream fis = new FileInputStream(file);
-                 Workbook workbook = file.getName().endsWith(".xlsx") ? new XSSFWorkbook(fis) : new HSSFWorkbook(fis)) {
+                    Sheet sheet = workbook.getSheetAt(0);
 
-                Sheet sheet = workbook.getSheetAt(0);
+                    // Флаги для определения типа файла
+                    boolean hasDebitCredit = false;
+                    boolean hasPrihodRashod = false;
+                    boolean hasDTKT = false;
+                    boolean containsSaldo = false;
 
-                // Флаги для определения типа файла
-                boolean hasDebitCredit = false;
-                boolean hasPrihodRashod = false;
-                boolean hasDTKT = false;
-                boolean containsSaldo = false;
+                    // Поиск заголовков в файле
+                    for (Row row : sheet) {
+                        boolean containsDebit = false;
+                        boolean containsCredit = false;
+                        boolean containsPrihod = false;
+                        boolean containsRashod = false;
+                        boolean containsDT = false;
+                        boolean containsKT = false;
 
-                // Поиск заголовков в файле
-                for (Row row : sheet) {
-                    boolean containsDebit = false;
-                    boolean containsCredit = false;
-                    boolean containsPrihod = false;
-                    boolean containsRashod = false;
-                    boolean containsDT = false;
-                    boolean containsKT = false;
+                        // Проверяем содержимое строки
+                        for (Cell cell : row) {
+                            String value = getCellValueAsString(cell).trim();
 
-                    // Проверяем содержимое строки
-                    for (Cell cell : row) {
-                        String value = getCellValueAsString(cell).trim();
+                            // Проверка на "Сальдо"
+                            if (!value.isEmpty() && value.toLowerCase().contains("сальдо")) {
+                                containsSaldo = true;
+                                break;
+                            }
 
-                        // Проверка на "Сальдо"
-                        if (!value.isEmpty() && value.toLowerCase().contains("сальдо")) {
-                            containsSaldo = true;
+                            // Проверка на заголовки
+                            if (value.equalsIgnoreCase("Дебет")) containsDebit = true;
+                            if (value.equalsIgnoreCase("Кредит")) containsCredit = true;
+                            if (value.equalsIgnoreCase("Приход")) containsPrihod = true;
+                            if (value.equalsIgnoreCase("Расход")) containsRashod = true;
+                            if (value.equalsIgnoreCase("дт")) containsDT = true;
+                            if (value.equalsIgnoreCase("кт")) containsKT = true;
+                        }
+
+                        // Если нашли "Сальдо", пропускаем строку
+                        if (containsSaldo) {
+                            containsSaldo = false;
+                            continue;
+                        }
+
+                        // Проверяем, нашли ли мы заголовки Дебет/Кредит
+                        if (containsDebit && containsCredit) {
+                            hasDebitCredit = true;
                             break;
                         }
 
-                        // Проверка на заголовки
-                        if (value.equalsIgnoreCase("Дебет")) containsDebit = true;
-                        if (value.equalsIgnoreCase("Кредит")) containsCredit = true;
-                        if (value.equalsIgnoreCase("Приход")) containsPrihod = true;
-                        if (value.equalsIgnoreCase("Расход")) containsRashod = true;
-                        if (value.equalsIgnoreCase("дт")) containsDT = true;
-                        if (value.equalsIgnoreCase("кт")) containsKT = true;
+                        // Проверяем, нашли ли мы заголовки Приход/Расход
+                        if (containsPrihod && containsRashod) {
+                            hasPrihodRashod = true;
+                            break;
+                        }
+
+                        // Проверяем, нашли ли мы заголовки Дт/Кт
+                        if (containsDT && containsKT) {
+                            hasDTKT = true;
+                            break;
+                        }
                     }
 
-                    // Если нашли "Сальдо", пропускаем строку
-                    if (containsSaldo) {
-                        containsSaldo = false;
-                        continue;
+                    // Определяем, какой метод использовать для парсинга
+                    Map<String, List<List<String>>> fileData;
+
+                    if (hasDebitCredit) {
+                        fileData = parseDebitCreditFile(workbook);
+                    } else if (hasPrihodRashod) {
+                        fileData = parsePrihodRashodFile(workbook);
+                    } else if (hasDTKT) {
+                        fileData = parseAiS(workbook);
+                    } else {
+                        // Если не нашли ни один из форматов, используем особый метод
+                        // и выходим из текущего метода
+                        settings.setComparePrihodRashod(true);
+                        return parseFilesPrihodRashod(files);
                     }
 
-                    // Проверяем, нашли ли мы заголовки Дебет/Кредит
-                    if (containsDebit && containsCredit) {
-                        hasDebitCredit = true;
-                        break;
+                    // Добавляем данные в общий megaMap, только если там есть какие-то данные
+                    if (!fileData.isEmpty()) {
+                        megaMap.put(file.getName(), fileData);
                     }
 
-                    // Проверяем, нашли ли мы заголовки Приход/Расход
-                    if (containsPrihod && containsRashod) {
-                        hasPrihodRashod = true;
-                        break;
-                    }
+                } catch (OldExcelFormatException e) {
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("Ошибка формата");
+                        alert.setHeaderText(null);
+                        alert.setContentText("Файл устаревшего формата Excel 5.0/7.0");
+                        alert.showAndWait();
+                    });
+                } catch (IOException e) {
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("Ошибка");
+                        alert.setHeaderText(null);
+                        alert.setContentText("Ошибка при работе с файлом: " + e.getMessage());
+                        alert.showAndWait();
+                    });
+                }
+            }
 
-                    // Проверяем, нашли ли мы заголовки Дт/Кт
-                    if (containsDT && containsKT) {
-                        hasDTKT = true;
-                        break;
+            return megaMap;
+        }
+    */
+    public static Map<String, Map<String, List<List<String>>>> parseFiles(File[] files, ComparisonSettings settings) {
+        // Если ни один из форматов не подходит, используем особый метод parseFilesPrihodRashod
+        boolean needsSpecialParsing = false;
+        Map<String, Map<String, List<List<String>>>> megaMap = new LinkedHashMap<>();
+
+        for (File file : files) {
+            try {
+                // Первая попытка: используем WorkbookFactory для автоматического определения формата
+                try (InputStream is = new FileInputStream(file);
+                     Workbook workbook = WorkbookFactory.create(is)) {
+
+                    boolean requiresSpecialParsing = processWorkbook(workbook, file, megaMap, settings);
+                    if (requiresSpecialParsing) {
+                        needsSpecialParsing = true;
                     }
                 }
+            } catch (Exception e) {
+                // Проверяем сообщение об ошибке на наличие ключевых слов
+                String errorMessage = e.getMessage() != null ? e.getMessage() : "";
+                boolean isOffice2007XMLError = errorMessage.contains("Office 2007+ XML") ||
+                        errorMessage.contains("OLE2") ||
+                        errorMessage.contains("XSSF instead of HSSF");
 
-                // Определяем, какой метод использовать для парсинга
-                Map<String, List<List<String>>> fileData;
+                if (isOffice2007XMLError) {
+                    // Если это ошибка формата, пробуем создать временный файл с правильным расширением
+                    try {
+                        // Создаем временный файл с расширением .xlsx
+                        String baseName = FilenameUtils.getBaseName(file.getName());
+                        File tempFile = new File(file.getParent(), baseName + ".xlsx");
 
-                if (hasDebitCredit) {
-                    fileData = parseDebitCreditFile(workbook);
-                } else if (hasPrihodRashod) {
-                    fileData = parsePrihodRashodFile(workbook);
-                } else if (hasDTKT) {
-                    fileData = parseAiS(workbook);
+                        // Копируем содержимое исходного файла
+                        FileUtils.copyFile(file, tempFile);
+
+                        // Пробуем открыть как XLSX
+                        try (FileInputStream fis = new FileInputStream(tempFile);
+                             Workbook workbook = new XSSFWorkbook(fis)) {
+
+                            boolean requiresSpecialParsing = processWorkbook(workbook, file, megaMap, settings);
+                            if (requiresSpecialParsing) {
+                                needsSpecialParsing = true;
+                            }
+
+                            // Удаляем временный файл после успешного использования
+                            tempFile.deleteOnExit();
+                        }
+                    } catch (Exception tempEx) {
+                        // Если и этот подход не сработал, возможно, нужна конвертация
+                        try {
+                            ExcelConverter.ExcelFileInfo fileInfo = ExcelConverter.checkExcelVersion(file);
+                            if (fileInfo.isConvertible()) {
+                                File convertedFile = ExcelConverter.convertBiff5ToXlsx(file);
+                                try (FileInputStream fis = new FileInputStream(convertedFile);
+                                     Workbook workbook = new XSSFWorkbook(fis)) {
+
+                                    boolean requiresSpecialParsing = processWorkbook(workbook, file, megaMap, settings);
+                                    if (requiresSpecialParsing) {
+                                        needsSpecialParsing = true;
+                                    }
+                                }
+                            } else {
+                                logAndShowError("Не удалось открыть файл: " + file.getName(), tempEx);
+                            }
+                        } catch (Exception convEx) {
+                            logAndShowError("Ошибка при конвертации файла: " + file.getName(), convEx);
+                        }
+                    }
+                } else if (errorMessage.contains("BIFF5") || errorMessage.contains("Excel 5.0/7.0")) {
+                    // Это старый формат Excel, нужна конвертация
+                    try {
+                        File convertedFile = ExcelConverter.convertBiff5ToXlsx(file);
+                        try (FileInputStream fis = new FileInputStream(convertedFile);
+                             Workbook workbook = new XSSFWorkbook(fis)) {
+
+                            processWorkbook(workbook, file, megaMap, settings);
+                        }
+                    } catch (Exception convEx) {
+                        logAndShowError("Ошибка при конвертации файла: " + file.getName(), convEx);
+                    }
                 } else {
-                    // Если не нашли ни один из форматов, используем особый метод
-                    // и выходим из текущего метода
-                    settings.setComparePrihodRashod(true);
-                    return parseFilesPrihodRashod(files);
+                    // Другая ошибка
+                    logAndShowError("Ошибка при работе с файлом: " + file.getName(), e);
                 }
-
-                // Добавляем данные в общий megaMap, только если там есть какие-то данные
-                if (!fileData.isEmpty()) {
-                    megaMap.put(file.getName(), fileData);
-                }
-
-            } catch (OldExcelFormatException e) {
-                Platform.runLater(() -> {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Ошибка формата");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Файл устаревшего формата Excel 5.0/7.0");
-                    alert.showAndWait();
-                });
-            } catch (IOException e) {
-                Platform.runLater(() -> {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Ошибка");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Ошибка при работе с файлом: " + e.getMessage());
-                    alert.showAndWait();
-                });
             }
         }
 
+        // Если обнаружено, что нужно использовать специальный парсинг
+        if (needsSpecialParsing) {
+            settings.setComparePrihodRashod(true);
+            return parseFilesPrihodRashod(files);
+        }
+
         return megaMap;
+    }
+
+    // Вспомогательный метод для обработки workbook
+    private static boolean processWorkbook(Workbook workbook, File originalFile,
+                                           Map<String, Map<String, List<List<String>>>> megaMap,
+                                           ComparisonSettings settings) {
+        Sheet sheet = workbook.getSheetAt(0);
+
+        // Флаги для определения типа файла
+        boolean hasDebitCredit = false;
+        boolean hasPrihodRashod = false;
+        boolean hasDTKT = false;
+        boolean containsSaldo = false;
+
+        // Поиск заголовков в файле
+        for (Row row : sheet) {
+            boolean containsDebit = false;
+            boolean containsCredit = false;
+            boolean containsPrihod = false;
+            boolean containsRashod = false;
+            boolean containsDT = false;
+            boolean containsKT = false;
+
+            // Проверяем содержимое строки
+            for (Cell cell : row) {
+                String value = getCellValueAsString(cell).trim();
+
+                // Проверка на "Сальдо"
+                if (!value.isEmpty() && value.toLowerCase().contains("сальдо")) {
+                    containsSaldo = true;
+                    break;
+                }
+
+                // Проверка на заголовки
+                if (value.equalsIgnoreCase("Дебет")) containsDebit = true;
+                if (value.equalsIgnoreCase("Кредит")) containsCredit = true;
+                if (value.equalsIgnoreCase("Приход")) containsPrihod = true;
+                if (value.equalsIgnoreCase("Расход")) containsRashod = true;
+                if (value.equalsIgnoreCase("дт")) containsDT = true;
+                if (value.equalsIgnoreCase("кт")) containsKT = true;
+            }
+
+            // Если нашли "Сальдо", пропускаем строку
+            if (containsSaldo) {
+                containsSaldo = false;
+                continue;
+            }
+
+            // Проверяем, нашли ли мы заголовки
+            if (containsDebit && containsCredit) {
+                hasDebitCredit = true;
+                break;
+            }
+            if (containsPrihod && containsRashod) {
+                hasPrihodRashod = true;
+                break;
+            }
+            if (containsDT && containsKT) {
+                hasDTKT = true;
+                break;
+            }
+        }
+
+        // Определяем, какой метод использовать для парсинга
+        Map<String, List<List<String>>> fileData;
+
+        if (hasDebitCredit) {
+            fileData = parseDebitCreditFile(workbook);
+        } else if (hasPrihodRashod) {
+            fileData = parsePrihodRashodFile(workbook);
+        } else if (hasDTKT) {
+            fileData = parseAiS(workbook);
+        } else {
+            // Если не нашли ни один из форматов, используем особый метод
+            // и выходим из текущего метода
+            settings.setComparePrihodRashod(true);
+            // Отмечаем, что нужно использовать специальный парсинг
+            return true;
+        }
+
+        // Добавляем данные в общий megaMap, только если там есть какие-то данные
+        if (!fileData.isEmpty()) {
+            megaMap.put(originalFile.getName(), fileData);
+        }
+
+        // Все обработано нормально, специальный парсинг не требуется
+        return false;
+    }
+
+    // Вспомогательный метод для логирования и отображения ошибок
+    private static void logAndShowError(String message, Exception e) {
+        // Логирование
+        Logger.getLogger(ExcelComparator.class.getName())
+                .log(Level.SEVERE, message, e);
+
+        // Отображение сообщения в UI
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Ошибка");
+            alert.setHeaderText(null);
+            alert.setContentText(message + "\n" + e.getMessage());
+            alert.showAndWait();
+        });
     }
 
     // Метод для обработки файлов Дебет/Кредит
