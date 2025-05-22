@@ -82,6 +82,9 @@ public class ChangeLog {
         addChange("6.1.0", List.of(
                 "Большой багфикс парсинга файлов с колонкой Сальдо"
         ), Color.web("#C7C7C7"), null);
+        addChange("6.1.1", List.of(
+                "Добавлена проверка для ТОВ \"Вента Рiтейл\""
+        ), Color.web("#C7C7C7"), null);
     }
 
     public static List<ChangeEntry> getChanges() {

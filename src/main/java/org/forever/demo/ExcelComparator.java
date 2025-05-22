@@ -425,7 +425,7 @@ public class ExcelComparator {
         return fileData;
     }*/
     // Метод для обработки файлов Приход/Расход
-    private static Map<String, List<List<String>>> parseAiS(Workbook workbook) {
+    /*private static Map<String, List<List<String>>> parseAiS(Workbook workbook) {
         Map<String, List<List<String>>> fileData = new HashMap<>();
         Sheet sheet = workbook.getSheetAt(0);
 
@@ -458,6 +458,189 @@ public class ExcelComparator {
             if (headersFound == 3) {
                 headerRow = row.getRowNum();
                 break;
+            }
+        }
+
+        if (headerRow == -1) {
+            return fileData; // Не нашли все нужные заголовки
+        }
+
+        // Регулярные выражения для проверки дат
+        Pattern shortDatePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{2}");
+        Pattern longDatePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
+
+        // Обрабатываем данные
+        for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+
+            if (row == null) {
+                continue;
+            }
+
+            // Получаем значения из нужных колонок
+            Cell dateCell = row.getCell(dateCellIndex);
+            Cell priceCell = row.getCell(prichodIndex);
+            Cell sumCell = row.getCell(rashodIndex);
+
+            // Получаем значение ячейки с датой как строку
+            String dateCellValue = getCellValueAsString(dateCell);
+            String dateKey = null;
+
+            // Проверяем, соответствует ли значение формату даты
+            Matcher longMatcher = longDatePattern.matcher(dateCellValue);
+            if (longMatcher.find()) {
+                dateKey = longMatcher.group();
+            } else {
+                Matcher shortMatcher = shortDatePattern.matcher(dateCellValue);
+                if (shortMatcher.find()) {
+                    dateKey = convertToFullYear(shortMatcher.group());
+                }
+            }
+
+            // Если нашли дату и она соответствует формату
+            if (dateKey != null) {
+                // Получаем значения цены и суммы
+                String priceValue = getCellValueAsString(priceCell);
+                String sumValue = getCellValueAsString(sumCell);
+
+                // Создаем список данных для текущей строки
+                List<String> rowData = new ArrayList<>();
+
+                // Добавляем значения в список, только если они числовые и не пустые
+                if (isNumeric(priceValue) && !priceValue.isEmpty()) {
+                    rowData.add(priceValue);
+                }
+
+                if (isNumeric(sumValue) && !sumValue.isEmpty()) {
+                    rowData.add(sumValue);
+                }
+
+                // Добавляем данные в map только если список не пуст
+                if (!rowData.isEmpty()) {
+                    fileData.putIfAbsent(dateKey, new ArrayList<>());
+                    fileData.get(dateKey).add(rowData);
+                }
+            }
+        }
+
+        return fileData;
+    }*/
+    private static Map<String, List<List<String>>> parseAiS(Workbook workbook) {
+        Map<String, List<List<String>>> fileData = new HashMap<>();
+        Sheet sheet = workbook.getSheetAt(0);
+
+        // Найдем индексы нужных колонок
+        int dateCellIndex = -1;
+        int documentCellIndex = -1;
+        int prichodIndex = -1;
+        int rashodIndex = -1;
+        int headerRow = -1;
+
+        // Сначала пытаемся найти все заголовки в одной строке (первый вариант таблицы)
+        for (Row row : sheet) {
+            int headersFound = 0;
+            boolean hasDateColumn = false;
+            boolean hasDocumentColumn = false;
+
+            for (Cell cell : row) {
+                String value = getCellValueAsString(cell).trim();
+
+                if (value.toLowerCase().contains("дата") && dateCellIndex == -1) {
+                    dateCellIndex = cell.getColumnIndex();
+                    hasDateColumn = true;
+                }
+
+                if (value.toLowerCase().contains("документ") && documentCellIndex == -1) {
+                    documentCellIndex = cell.getColumnIndex();
+                    hasDocumentColumn = true;
+                }
+
+                if (value.equalsIgnoreCase("дт") && prichodIndex == -1) {
+                    prichodIndex = cell.getColumnIndex();
+                    headersFound++;
+                }
+                if (value.equalsIgnoreCase("кт") && rashodIndex == -1) {
+                    rashodIndex = cell.getColumnIndex();
+                    headersFound++;
+                }
+            }
+
+            int finalDateIndex = -1;
+            if (hasDateColumn) {
+                finalDateIndex = dateCellIndex;
+            } else if (hasDocumentColumn) {
+                finalDateIndex = documentCellIndex;
+            }
+
+            // Если нашли все заголовки в одной строке - используем этот вариант
+            if (finalDateIndex != -1 && headersFound == 2) {
+                headerRow = row.getRowNum();
+                dateCellIndex = finalDateIndex;
+                break;
+            }
+        }
+
+        // Если не нашли все заголовки в одной строке, ищем в разных строках (второй вариант таблицы)
+        if (headerRow == -1) {
+            dateCellIndex = -1;
+            documentCellIndex = -1;
+            prichodIndex = -1;
+            rashodIndex = -1;
+
+            for (int rowIndex = 0; rowIndex <= sheet.getLastRowNum() - 1; rowIndex++) {
+                Row currentRow = sheet.getRow(rowIndex);
+                Row nextRow = sheet.getRow(rowIndex + 1);
+
+                if (currentRow == null || nextRow == null) {
+                    continue;
+                }
+
+                boolean hasDateColumn = false;
+                boolean hasDocumentColumn = false;
+                int dtKtFound = 0;
+
+                // Ищем "Дата" и "Документ" в текущей строке
+                for (Cell cell : currentRow) {
+                    String value = getCellValueAsString(cell).trim();
+
+                    if (value.toLowerCase().contains("дата") && dateCellIndex == -1) {
+                        dateCellIndex = cell.getColumnIndex();
+                        hasDateColumn = true;
+                    }
+
+                    if (value.toLowerCase().contains("документ") && documentCellIndex == -1) {
+                        documentCellIndex = cell.getColumnIndex();
+                        hasDocumentColumn = true;
+                    }
+                }
+
+                // Ищем "Дт" и "Кт" в следующей строке
+                for (Cell cell : nextRow) {
+                    String value = getCellValueAsString(cell).trim();
+
+                    if (value.equalsIgnoreCase("дт") && prichodIndex == -1) {
+                        prichodIndex = cell.getColumnIndex();
+                        dtKtFound++;
+                    }
+                    if (value.equalsIgnoreCase("кт") && rashodIndex == -1) {
+                        rashodIndex = cell.getColumnIndex();
+                        dtKtFound++;
+                    }
+                }
+
+                int finalDateIndex = -1;
+                if (hasDateColumn) {
+                    finalDateIndex = dateCellIndex;
+                } else if (hasDocumentColumn) {
+                    finalDateIndex = documentCellIndex;
+                }
+
+                // Если нашли дату в текущей строке и Дт/Кт в следующей
+                if (finalDateIndex != -1 && dtKtFound == 2) {
+                    headerRow = nextRow.getRowNum(); // Устанавливаем строку с Дт/Кт как заголовочную
+                    dateCellIndex = finalDateIndex;
+                    break;
+                }
             }
         }
 
