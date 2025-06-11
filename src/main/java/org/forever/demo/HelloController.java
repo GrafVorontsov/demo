@@ -166,7 +166,7 @@ public class HelloController {
 
     public String getApplicationVersion() {
         // Получение версии из свойств, манифеста или константы
-        return "6.1.1";
+        return "6.1.2";
     }
 
     // Method to update the compare button state

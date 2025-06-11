@@ -54,6 +54,11 @@ public class ExcelComparator {
                     try {
                         // Создаем временную копию с правильным расширением
                         String baseName = FilenameUtils.getBaseName(file.getName());
+                        // Проверяем, что длина префикса не меньше 3 символов
+                        if (baseName.length() < 3) {
+                            // Дополняем имя, чтобы оно соответствовало требованиям
+                            baseName = baseName + "___"; // или baseName + System.currentTimeMillis();
+                        }
                         File tempFile = File.createTempFile(baseName, ".xlsx");
                         tempFile.deleteOnExit();
 
