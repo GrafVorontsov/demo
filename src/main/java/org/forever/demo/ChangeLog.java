@@ -88,6 +88,9 @@ public class ChangeLog {
         addChange("6.1.2", List.of(
                 "Багфикс определения имени файла"
         ), Color.web("#C7C7C7"), null);
+        addChange("7.0.0", List.of(
+                "Добавлен дополнительный полный просмотр несоответствий"
+        ), Color.web("#C7C7C7"), null);
     }
 
     public static List<ChangeEntry> getChanges() {
