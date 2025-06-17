@@ -35,3 +35,52 @@
 .progress-indicator {
     -fx-progress-color: #004A77;
 }
+
+/* =================================================================
+   ОСНОВНОЙ ФОН И ШРИФТЫ
+   ================================================================= */
+.root {
+    /* Фоновый цвет для SplitPane и других корневых элементов */
+    -fx-background-color: #2b2b2b;
+}
+
+
+/* =================================================================
+   СТИЛЬ ДЛЯ SCROLLPANE
+   ================================================================= */
+
+/* Основной контейнер ScrollPane */
+.custom-scroll-pane {
+    -fx-background: #2b2b2b; /* Фон, если контент меньше */
+    -fx-background-color: #2b2b2b;
+}
+
+/* Трек, по которому движется бегунок */
+.custom-scroll-pane .scroll-bar:vertical .track,
+.custom-scroll-pane .scroll-bar:horizontal .track {
+    -fx-background-color: #3c3f41; /* Ваш цвет трека */
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+/* "Бегунок" (ползунок) скроллбара */
+.custom-scroll-pane .scroll-bar:vertical .thumb,
+.custom-scroll-pane .scroll-bar:horizontal .thumb {
+    -fx-background-color: #44b044; /* ВАШ ЦВЕТ СКРОЛЛБАРА! */
+    -fx-background-insets: 2;
+    -fx-background-radius: 5px; /* Ваше скругление углов */
+}
+
+/* Кнопки-стрелки на скроллбаре (делаем их незаметными) */
+.custom-scroll-pane .scroll-bar .increment-button,
+.custom-scroll-pane .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-background-radius: 0;
+}
+
+.custom-scroll-pane .scroll-bar .increment-arrow,
+.custom-scroll-pane .scroll-bar .decrement-arrow {
+    -fx-shape: " ";
+    -fx-padding: 0;
+}

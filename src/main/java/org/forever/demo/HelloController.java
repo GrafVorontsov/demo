@@ -35,11 +35,15 @@ import javafx.scene.layout.HBox;
 import javafx.scene.control.ScrollPane;
 import javafx.geometry.Insets;
 import javafx.util.Duration;
+import org.forever.demo.ComparisonResult.DetailedComparisonData;
+import org.forever.demo.ComparisonResult.MismatchInfo;
+import javafx.scene.layout.GridPane;
 
 import java.io.File;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Pattern;
 
 import static org.forever.demo.ExcelComparator.*;
 import static org.forever.demo.ExcelConverter.convertFile;
@@ -47,6 +51,7 @@ import static org.forever.demo.ExcelConverter.convertFile;
 public class HelloController {
     public Button compareButton;
     public Button printButton;
+    public Button eyeButton;
     @FXML
     private Button clearButton;
     @FXML
@@ -67,6 +72,8 @@ public class HelloController {
     private File file1;
     private File file2;
     private boolean hasSameFilenames = false;
+    private DetailedComparisonData detailedComparisonData = null;
+    private Stage detailedViewStage = null;
 
     // Style constants
     private static final String STYLE_ERROR = "-fx-fill: #d56949;";
@@ -94,10 +101,20 @@ public class HelloController {
         printIcon.setFill(Paint.valueOf("#E3E3E3"));
         printButton.setGraphic(printIcon);
 
-        // Disable compare button initially as no files are loaded
+        FontAwesomeIconView eyeIcon = new FontAwesomeIconView(FontAwesomeIcon.EYE);
+        eyeIcon.setSize("20px");
+        eyeIcon.setFill(Paint.valueOf("#E3E3E3"));
+        eyeButton.setGraphic(eyeIcon);
+
+        eyeButton.setDisable(true);
         updateCompareButtonState();
 
         clearButton.setOnAction(_ -> {
+            // Закрываем окно детального просмотра, если оно открыто
+            if (detailedViewStage != null && detailedViewStage.isShowing()) {
+                detailedViewStage.close();
+                detailedViewStage = null; // Сбрасываем ссылку
+            }
             // Очищаем оба TextArea
             fileDropArea1.clear();
             fileDropArea2.clear();
@@ -114,6 +131,8 @@ public class HelloController {
             fileDropArea1.setText("Первый файл");
             fileDropArea2.setText("Второй файл");
 
+            this.detailedComparisonData = null;
+            eyeButton.setDisable(true);
             // Update button state after clearing
             updateCompareButtonState();
         });
@@ -125,6 +144,10 @@ public class HelloController {
         Tooltip printTooltip = new Tooltip("Печать");
         printTooltip.setShowDelay(Duration.millis(200));
         Tooltip.install(printButton, printTooltip);
+
+        Tooltip eyeTooltip = new Tooltip("Просмотр");
+        eyeTooltip.setShowDelay(Duration.millis(200));
+        Tooltip.install(eyeButton, eyeTooltip);
     }
 
     @FXML
@@ -166,7 +189,7 @@ public class HelloController {
 
     public String getApplicationVersion() {
         // Получение версии из свойств, манифеста или константы
-        return "6.1.2";
+        return "7.0.0";
     }
 
     // Method to update the compare button state
@@ -183,6 +206,12 @@ public class HelloController {
             outputTextFlow.getChildren().add(createStyledText(
                     "Необходимо загрузить два различных файла для сравнения", STYLE_INFO));
             return;
+        }
+
+        // Закрываем окно детального просмотра от предыдущего сравнения
+        if (detailedViewStage != null && detailedViewStage.isShowing()) {
+            detailedViewStage.close();
+            detailedViewStage = null; // Сбрасываем ссылку
         }
 
         //Создаём индикатор прогресса
@@ -219,9 +248,15 @@ public class HelloController {
 
                 ComparisonSettings settings = new ComparisonSettings(false, false);
                 Map<String, Map<String, List<List<String>>>> megaMap = parseFiles(new File[]{file1, file2}, settings);
-                List<String> differences = compareDataInMegaMap(megaMap, compareByAbsoluteValue, settings.isComparePrihodRashod());
+                ComparisonResult result = compareDataInMegaMap(megaMap, compareByAbsoluteValue, settings.isComparePrihodRashod());
 
                 Platform.runLater(() -> {
+                    // Сохраняем детальные данные
+                    this.detailedComparisonData = result.detailedData();
+                    // Активируем или деактивируем кнопку просмотра
+                    eyeButton.setDisable(this.detailedComparisonData == null);
+
+                    List<String> differences = result.summaryLines();
                     if (differences.isEmpty()) {
                         outputTextFlow.getChildren().clear();
                         outputTextFlow.getChildren().add(createStyledText("Данные идентичны!", STYLE_HIGHLIGHT + " -fx-font-size: 14px;"));
@@ -232,8 +267,12 @@ public class HelloController {
 
             } catch (Exception e) {
                 Platform.runLater(() -> {
+                    // При ошибке также сбрасываем данные и кнопку
+                    this.detailedComparisonData = null;
+                    eyeButton.setDisable(true);
                     outputTextFlow.getChildren().clear();
                     outputTextFlow.getChildren().add(createStyledText("Ошибка: " + e.getMessage(), STYLE_ERROR));
+                    e.printStackTrace(); // Для отладки
                 });
             }
         });
@@ -362,6 +401,174 @@ public class HelloController {
                 .replaceAll("</span>", ""); // Убираем теги
     }
 
+    @FXML
+    public void handleEyeButtonAction(ActionEvent event) {
+        if (detailedComparisonData == null) {
+            showAlert(AlertType.INFORMATION, "Нет данных", "Данные для просмотра отсутствуют", "Сначала выполните сравнение.");
+            return;
+        }
+
+        try {
+            // Если окно уже открыто, просто выводим его на передний план.
+            // Это предотвращает открытие множества одинаковых окон.
+            if (detailedViewStage != null && detailedViewStage.isShowing()) {
+                detailedViewStage.toFront();
+                return;
+            }
+            // Создаем новое окно и сохраняем ссылку на него
+            this.detailedViewStage = new Stage();
+            detailedViewStage.setTitle("Детальный просмотр расхождений");
+
+            Stage newWindow = new Stage();
+            newWindow.setTitle("Детальный просмотр расхождений");
+            SplitPane splitPane = new SplitPane();
+
+            Node view1 = createDetailedTableView(detailedComparisonData.file1Data(), detailedComparisonData.mismatches(), true);
+            Node view2 = createDetailedTableView(detailedComparisonData.file2Data(), detailedComparisonData.mismatches(), false);
+
+            // Передаем в ScrollPane чистый GridPane (view1 и view2)
+            ScrollPane scrollPane1 = new ScrollPane(view1);
+            ScrollPane scrollPane2 = new ScrollPane(view2);
+
+            scrollPane1.setFitToWidth(true);
+            scrollPane2.setFitToWidth(true);
+
+            scrollPane1.getStyleClass().add("custom-scroll-pane");
+            scrollPane2.getStyleClass().add("custom-scroll-pane");
+
+            splitPane.getItems().addAll(scrollPane1, scrollPane2);
+            splitPane.setDividerPositions(0.5);
+
+            double initialWidth = 1240;
+            double initialHeight = 620;
+
+            Scene newWindowScene = new Scene(splitPane, initialWidth, initialHeight);
+
+            // Используем ваш надежный способ загрузки CSS
+            try {
+                newWindowScene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/style/styles.css")).toExternalForm());
+            } catch (Exception e) {
+                System.err.println("Не удалось загрузить /style/styles.css.");
+                e.printStackTrace();
+            }
+
+            detailedViewStage.setScene(newWindowScene);
+            // Это сбросит нашу ссылку, чтобы мы знали, что окна больше нет.
+            detailedViewStage.setOnCloseRequest(e -> {
+                this.detailedViewStage = null;
+            });
+
+            // Показываем окно
+            detailedViewStage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert(AlertType.ERROR, "Ошибка", "Не удалось открыть окно просмотра", "Произошла внутренняя ошибка: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Создает таблицу (GridPane) для детального просмотра данных одного из файлов.
+     *
+     * @param fileData   Данные для отображения (ключ - дата, значение - строки с числами).
+     * @param mismatches Информация о несовпадениях для подсветки.
+     * @param isFile1    True, если это данные для файла 1 (для выбора цвета подсветки).
+     * @return Узел (GridPane), содержащий отформатированную таблицу.
+     */
+    private Node createDetailedTableView(Map<String, List<List<String>>> fileData, Map<String, MismatchInfo> mismatches, boolean isFile1) {
+        GridPane grid = new GridPane();
+        grid.setPadding(new Insets(10));
+
+        // Ваши стили
+        String highlightStyle = isFile1 ? STYLE_HIGHLIGHT : STYLE_SUCCESS;
+        String highlightStyleFull = highlightStyle + " -fx-font-weight: bold;";
+        String dateHeaderColor = "-fx-fill: #b3340f;";
+
+        int rowIndex = 0;
+        List<String> sortedKeys = fileData.keySet().stream().sorted().toList();
+
+        Pattern datePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{2,4}");
+
+        for (String key : sortedKeys) {
+            Text dateHeader = new Text(key);
+            dateHeader.setStyle(dateHeaderColor + " -fx-font-weight: bold; -fx-font-size: 14px;");
+
+            StackPane headerContainer = new StackPane(dateHeader);
+            headerContainer.setPadding(new Insets(10, 0, 5, 0));
+            headerContainer.setAlignment(Pos.CENTER_LEFT);
+            headerContainer.setStyle("-fx-border-color: #515658; -fx-border-width: 0 0 1px 0;");
+
+            // Увеличиваем columnspan для заголовка, чтобы он точно покрывал всю ширину
+            grid.add(headerContainer, 0, rowIndex++, 5, 1);
+
+            List<List<String>> allRowsForKey = fileData.get(key);
+            if (allRowsForKey == null || allRowsForKey.isEmpty()) continue;
+
+            MismatchInfo mismatchInfo = mismatches.get(key);
+            List<List<String>> uniqueRows = (mismatchInfo != null)
+                    ? (isFile1 ? mismatchInfo.uniqueRowsFile1() : mismatchInfo.uniqueRowsFile2())
+                    : Collections.emptyList();
+            Set<List<String>> uniqueRowsSet = new HashSet<>(uniqueRows);
+
+            for (List<String> rowData : allRowsForKey) {
+                boolean shouldHighlight = uniqueRowsSet.contains(rowData);
+
+                // --- НАЧАЛО ИЗМЕНЕНИЙ: Проверяем, является ли строка итоговой/описательной ---
+                // Условие: строка состоит из одной ячейки, и эта ячейка не является просто числом.
+                if (rowData.size() == 1 && !isNumeric(rowData.getFirst())) {
+                    String value = rowData.getFirst();
+                    Text summaryText = new Text(value);
+                    summaryText.setStyle(shouldHighlight ? highlightStyleFull : STYLE_INFO);
+                    // Включаем перенос текста, чтобы он не выходил за пределы
+                    summaryText.setWrappingWidth(550); // Ширина, в рамках которой текст будет переноситься
+
+                    StackPane summaryContainer = new StackPane(summaryText);
+                    summaryContainer.setAlignment(Pos.CENTER_LEFT);
+                    summaryContainer.setPadding(new Insets(8, 8, 8, 8));
+                    summaryContainer.setStyle("-fx-border-color: #515658; -fx-border-width: 0 0 1px 0;");
+
+                    // Добавляем контейнер в сетку, указывая, что он должен занимать 5 колонок в ширину
+                    grid.add(summaryContainer, 0, rowIndex, 5, 1);
+
+                } else {
+                    // --- СТАРАЯ ЛОГИКА для обычных строк с несколькими ячейками ---
+                    for (int colIndex = 0; colIndex < rowData.size(); colIndex++) {
+                        String value = rowData.get(colIndex);
+                        Text cellText = new Text(value);
+                        cellText.setStyle(shouldHighlight ? highlightStyleFull : STYLE_INFO);
+
+                        StackPane cellContainer = new StackPane(cellText);
+
+                        double prefWidth;
+                        boolean isShortContent = isNumeric(value) || datePattern.matcher(value).lookingAt();
+
+                        if (isShortContent) {
+                            prefWidth = 120;
+                        } else {
+                            prefWidth = 380;
+                        }
+
+                        cellContainer.setPrefWidth(prefWidth);
+                        cellContainer.setAlignment(Pos.TOP_LEFT);
+                        cellContainer.setStyle("-fx-border-color: #515658; -fx-border-width: 0 1px 1px 1px;");
+                        cellContainer.setPadding(new Insets(5, 8, 5, 8));
+
+                        grid.add(cellContainer, colIndex, rowIndex);
+                    }
+                }
+                // --- КОНЕЦ ИЗМЕНЕНИЙ ---
+
+                rowIndex++;
+            }
+            rowIndex++;
+        }
+
+        StackPane backgroundContainer = new StackPane(grid);
+        backgroundContainer.setStyle("-fx-background-color: #1e1f22;");
+
+        return backgroundContainer;
+    }
+
     /**
      * Отображает текст в формате "Префикс: Значение" с разными стилями
      * @param keyValueText Строка в формате "Префикс: Значение"
@@ -452,6 +659,7 @@ public class HelloController {
 
             // Создаем кнопки управления
             Button printButton = new Button("Печать");
+            Button eyeButton = new Button("Просмотр");
             Button cancelButton = new Button("Отмена");
 
             // Добавляем выбор режима печати
@@ -463,6 +671,11 @@ public class HelloController {
                 previewStage.close();
                 boolean colorMode = colorModeCheckBox.isSelected();
                 printContent(contentToPrint, colorMode, pageLayout);
+            });
+
+            // Обработчик для кнопки печати
+            eyeButton.setOnAction(_ -> {
+
             });
 
             // Обработчик для кнопки отмены

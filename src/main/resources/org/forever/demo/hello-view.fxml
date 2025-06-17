@@ -32,7 +32,10 @@
             <Button fx:id="clearButton" style="-fx-font-size: 16px;"/>
         </HBox>
         <CheckBox fx:id="compareByAbsoluteValueCheckBox" text="По модулю" />
-        <Button fx:id="printButton" style="-fx-font-size: 16px;" onAction="#handlePrintButtonAction"/>
+        <HBox spacing="10.0" alignment="CENTER">
+            <Button fx:id="printButton" style="-fx-font-size: 16px;" onAction="#handlePrintButtonAction"/>
+            <Button fx:id="eyeButton" style="-fx-font-size: 16px;" onAction="#handleEyeButtonAction"/>
+        </HBox>
 
         <!-- Добавляем растягивающийся пробел -->
         <Region VBox.vgrow="ALWAYS" />
