@@ -154,6 +154,7 @@ public class ExcelComparator {
         boolean hasDebitCredit = false;
         boolean hasPrihodRashod = false;
         boolean hasDTKT = false;
+        boolean hasPrihodRashodWithBalance = false;
 
         // Поиск заголовков в файле
         for (Row row : sheet) {
@@ -163,6 +164,7 @@ public class ExcelComparator {
             boolean containsRashod = false;
             boolean containsDT = false;
             boolean containsKT = false;
+            boolean containsNachOstatok = false; // ДЛЯ РАЗЛИЧЕНИЯ ТИПОВ
 
             // Проверяем содержимое строки
             for (Cell cell : row) {
@@ -175,6 +177,9 @@ public class ExcelComparator {
                 if (value.equalsIgnoreCase("Расход")) containsRashod = true;
                 if (value.equalsIgnoreCase("дт")) containsDT = true;
                 if (value.equalsIgnoreCase("кт")) containsKT = true;
+                if (value.contains("нач. остаток") || value.contains("кон. остаток")) {
+                    containsNachOstatok = true;
+                }
             }
 
             // Проверяем, нашли ли мы заголовки
@@ -183,7 +188,11 @@ public class ExcelComparator {
                 break;
             }
             if (containsPrihod && containsRashod) {
-                hasPrihodRashod = true;
+                if (containsNachOstatok) {
+                    hasPrihodRashodWithBalance = true; // Старый формат с остатками
+                } else {
+                    hasPrihodRashod = true; // Новый формат (как Дебет/Кредит)
+                }
                 break;
             }
             if (containsDT && containsKT) {
@@ -198,12 +207,15 @@ public class ExcelComparator {
         if (hasDebitCredit) {
             fileData = parseDebitCreditFile(workbook);
         } else if (hasPrihodRashod) {
+            // НОВЫЙ файл обрабатываем как Дебет/Кредит
+            fileData = parsePrihodRashodAsDebitCredit(workbook);
+        } else if (hasPrihodRashodWithBalance) {
+            // Старый файл с остатками
             fileData = parsePrihodRashodFile(workbook);
         } else if (hasDTKT) {
             fileData = parseAiS(workbook);
         } else {
-            // Если не нашли ни один из форматов, нужен специальный парсинг
-            return true; // Сигнализируем, что нужен специальный парсинг
+            return true; // Требуется специальный парсинг
         }
 
         // Добавляем данные в общий megaMap, только если там есть какие-то данные
@@ -700,7 +712,7 @@ private static Map<String, List<List<String>>> parsePrihodRashodFile(Workbook wo
 
         if (comparePrihodRashod) { // Для сравнения приходно-расходных накладных
 
-            // Этот блок кода был в вашем исходном файле, адаптируем его под новый формат вывода
+            //адаптируем его под новый формат вывода
             for (Map.Entry<String, List<List<String>>> merged : megaMap.get("merged").entrySet()) {
                 String mergedKey = merged.getKey();
                 List<List<String>> mergedValue = merged.getValue();
@@ -1065,6 +1077,75 @@ private static Map<String, List<List<String>>> parsePrihodRashodFile(Workbook wo
         megaMapka.put(key, compareMegaMap);
 
         return megaMapka;
+    }
+
+    // Метод для обработки файлов Приход/Расход БЕЗ остатков (структура как Дебет/Кредит)
+    private static Map<String, List<List<String>>> parsePrihodRashodAsDebitCredit(Workbook workbook) {
+        Map<String, List<List<String>>> fileData = new LinkedHashMap<>();
+        Sheet sheet = workbook.getSheetAt(0);
+        int startRowIndex = -1;
+
+        // Ищем строку с заголовками "Приход" и "Расход"
+        for (Row row : sheet) {
+            if (row == null) continue;
+            boolean containsPrihod = false;
+            boolean containsRashod = false;
+            for (Cell cell : row) {
+                String value = getCellValueAsString(cell).trim().toLowerCase();
+                if (value.equals("приход")) containsPrihod = true;
+                if (value.equals("расход")) containsRashod = true;
+            }
+            if (containsPrihod && containsRashod) {
+                startRowIndex = row.getRowNum() + 1;
+                break;
+            }
+        }
+
+        if (startRowIndex == -1) {
+            return fileData;
+        }
+
+        Pattern datePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{2,4}");
+
+        for (int i = startRowIndex; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row == null || isRowEmpty(row) || containsSummary(row)) {
+                break;
+            }
+
+            List<String> rowData = new ArrayList<>();
+            String dateKey = null;
+
+            // Собираем все непустые ячейки
+            for (Cell cell : row) {
+                String value = getCellValueAsString(cell).trim();
+                if (!value.isEmpty()) {
+                    rowData.add(value);
+                }
+            }
+
+            if (rowData.isEmpty()) continue;
+
+            // Если первый элемент - это порядковый номер, удаляем его
+            if (rowData.size() > 1 && isSequentialNumber(rowData.getFirst())) {
+                rowData.removeFirst();
+            }
+
+            // Ищем дату в оставшихся данных
+            for (String cellValue : rowData) {
+                Matcher m = datePattern.matcher(cellValue);
+                if (m.find()) {
+                    dateKey = convertToFullYear(m.group());
+                    break;
+                }
+            }
+
+            // Добавляем строку, только если в ней была найдена дата
+            if (dateKey != null) {
+                fileData.computeIfAbsent(dateKey, k -> new ArrayList<>()).add(rowData);
+            }
+        }
+        return fileData;
     }
 
     public static Map<String, List<List<String>>> compareMegaMapData(
