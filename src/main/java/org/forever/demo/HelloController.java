@@ -74,6 +74,7 @@ public class HelloController {
     private boolean hasSameFilenames = false;
     private DetailedComparisonData detailedComparisonData = null;
     private Stage detailedViewStage = null;
+    private String counterpartyName;
 
     // Style constants
     private static final String STYLE_ERROR = "-fx-fill: #d56949;";
@@ -189,7 +190,7 @@ public class HelloController {
 
     public String getApplicationVersion() {
         // Получение версии из свойств, манифеста или константы
-        return "7.1.0";
+        return "7.2.0";
     }
 
     // Method to update the compare button state
@@ -234,6 +235,11 @@ public class HelloController {
         // А показывать Alert только в UI потоке
         CompletableFuture.runAsync(() -> {
             try {
+                // >>> НАЧАЛО ИЗМЕНЕНИЙ
+                // Ищем имя контрагента перед сравнением
+                this.counterpartyName = ExcelComparator.findCounterpartyName(new File[]{file1, file2});
+                // <<< КОНЕЦ ИЗМЕНЕНИЙ
+
                 ExcelConverter.ExcelFileInfo fileInfo1 = ExcelConverter.checkExcelVersion(file1);
                 ExcelConverter.ExcelFileInfo fileInfo2 = ExcelConverter.checkExcelVersion(file2);
 
@@ -705,71 +711,49 @@ public class HelloController {
     }
 
     /**
-     * Разделяет контент на страницы
+     * Разделяет контент на страницы, добавляя заголовок с именем контрагента.
      */
     private List<Node> paginateContent(Node originalContent, PageLayout pageLayout) {
         List<Node> pages = new ArrayList<>();
-
-        // Для TextFlow разделяем текст на страницы
-        if (originalContent instanceof TextFlow textFlow) {
-
-            // Создаем копию контента для обработки
-            TextFlow workingCopy = new TextFlow();
-            for (Node child : textFlow.getChildren()) {
-                if (child instanceof Text originalText) {
-                    Text newText = new Text(originalText.getText());
-                    newText.setStyle(originalText.getStyle());
-                    workingCopy.getChildren().add(newText);
-                }
-            }
-
-            // Устанавливаем ширину как у страницы для точного подсчета
-            workingCopy.setPrefWidth(pageLayout.getPrintableWidth());
-
-            // Создаем временную сцену для расчета разметки
-            new Scene(new Group(workingCopy));
-
-            // Считаем высоту страницы для печати (с учетом полей)
-            double pageHeight = pageLayout.getPrintableHeight();
-
-            // Вычисляем общую высоту контента
-            workingCopy.applyCss();
-            workingCopy.layout();
-
-            // Разбиваем на страницы
-            int pageCount = (int) Math.ceil(workingCopy.getBoundsInLocal().getHeight() / pageHeight);
-
-            // Создаем страницы
-            for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-                TextFlow pageContent = new TextFlow();
-                pageContent.setPrefWidth(pageLayout.getPrintableWidth());
-                pageContent.setPrefHeight(pageHeight);
-
-                // Начальная и конечная позиция текста для страницы
-                double startY = pageIndex * pageHeight;
-                double endY = startY + pageHeight;
-
-                // Копируем текст для текущей страницы
-                int startCharIndex = getCharIndexAtY(workingCopy, startY);
-                int endCharIndex = getCharIndexAtY(workingCopy, endY);
-
-                // Если это первая страница, начинаем с 0
-                if (pageIndex == 0) startCharIndex = 0;
-
-                // Для последней страницы берем весь оставшийся текст
-                if (pageIndex == pageCount - 1) {
-                    endCharIndex = getFullTextLength(workingCopy);
-                }
-
-                // Копируем текст для этой страницы
-                copyTextInRange(workingCopy, pageContent, startCharIndex, endCharIndex);
-
-                // Добавляем созданную страницу
-                pages.add(pageContent);
-            }
-        } else {
-            // Для других типов контента просто создаем копию
+        if (!(originalContent instanceof TextFlow originalTextFlow) || originalTextFlow.getChildren().isEmpty()) {
             pages.add(originalContent);
+            return pages;
+        }
+
+        double pagePrintableWidth = pageLayout.getPrintableWidth();
+        double pagePrintableHeight = pageLayout.getPrintableHeight();
+        double headerAndFooterHeight = 65;
+        double contentHeightPerPage = pagePrintableHeight - headerAndFooterHeight;
+
+        List<Node> sourceNodes = new ArrayList<>(originalTextFlow.getChildren());
+        List<Node> currentPageNodes = new ArrayList<>();
+        int pageCounter = 1;
+
+        for (Node sourceNode : sourceNodes) {
+            // Добавляем следующую строку на текущую страницу
+            currentPageNodes.add(sourceNode);
+
+            // Проверяем, не вышли ли мы за пределы
+            double currentHeight = calculateFlowHeight(currentPageNodes, pagePrintableWidth);
+
+            // Если вышли, и на странице была не только эта строка
+            if (currentHeight > contentHeightPerPage && currentPageNodes.size() > 1) {
+                // 1. Убираем последнюю добавленную строку (которая вызвала переполнение)
+                Node overflowingNode = currentPageNodes.remove(currentPageNodes.size() - 1);
+
+                // 2. Текущая страница (без последней строки) считается завершенной
+                pages.add(createPagePane(pageCounter++, currentPageNodes, pageLayout));
+
+                // 3. Начинаем новую страницу с той самой строки, которая не поместилась
+                currentPageNodes = new ArrayList<>();
+                currentPageNodes.add(overflowingNode);
+            }
+            // Если строка поместилась, просто продолжаем цикл
+        }
+
+        // Добавляем самую последнюю страницу, которая осталась после цикла
+        if (!currentPageNodes.isEmpty()) {
+            pages.add(createPagePane(pageCounter, currentPageNodes, pageLayout));
         }
 
         return pages;
@@ -779,44 +763,35 @@ public class HelloController {
      * Находит индекс символа на указанной позиции Y
      */
     private int getCharIndexAtY(TextFlow textFlow, double y) {
-        // Помещаем в сцену для корректных расчетов
         if (!textFlow.isManaged()) {
-            new Scene(new Group(textFlow)); // Просто создаём, без переменной
+            new Scene(new Group(textFlow));
             textFlow.applyCss();
             textFlow.layout();
         }
 
-        // Общий счетчик символов
         int totalChars = 0;
-
         for (Node node : textFlow.getChildren()) {
             if (node instanceof Text text) {
                 Bounds bounds = text.getBoundsInParent();
-
-                // Если узел ниже текущей позиции Y, включаем все его символы
                 if (bounds.getMinY() >= y) {
                     return totalChars;
                 }
-
-                // Если узел пересекает Y, ищем точный символ
                 if (bounds.getMinY() < y && bounds.getMaxY() > y) {
                     String content = text.getText();
-                    // Простое приближение: считаем пропорционально высоте
+                    if (content.isEmpty()) continue;
                     double charHeight = bounds.getHeight() / content.length();
                     int charsBeforeY = (int) ((y - bounds.getMinY()) / charHeight);
                     return totalChars + Math.min(charsBeforeY, content.length());
                 }
-
-                // Узел полностью над Y, добавляем все его символы
                 totalChars += text.getText().length();
             }
         }
-
         return totalChars;
     }
 
+
     /**
-     * Получает общую длину текста во всех Text узлах
+     * Получает общую длину текста во всех Text узлах. (Остается без изменений, но нужен для нового paginateContent).
      */
     private int getFullTextLength(TextFlow textFlow) {
         int length = 0;
@@ -826,6 +801,19 @@ public class HelloController {
             }
         }
         return length;
+    }
+
+    /**
+     * Извлекает весь текст из TextFlow в единую строку.
+     */
+    private String getFullText(TextFlow textFlow) {
+        StringBuilder sb = new StringBuilder();
+        for (Node node : textFlow.getChildren()) {
+            if (node instanceof Text text) {
+                sb.append(text.getText());
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -865,71 +853,60 @@ public class HelloController {
      * Метод для печати содержимого с корректным масштабированием
      */
     private void printContent(Node content, boolean colorMode, PageLayout pageLayout) {
-        // Получаем доступный принтер
         Printer printer = Printer.getDefaultPrinter();
         if (printer == null) {
             showAlert(AlertType.ERROR, "Ошибка", "Принтер не найден",
                     "Не удалось найти доступный принтер. Пожалуйста, проверьте настройки принтера.");
             return;
         }
-        // Создаем задание печати
         PrinterJob job = PrinterJob.createPrinterJob(printer);
-        // Показываем диалог настроек печати
         boolean proceed = job.showPrintDialog(content.getScene().getWindow());
         if (proceed) {
             try {
-                // Разделяем контент на страницы
                 List<Node> pages = paginateContent(content, pageLayout);
-                // Настраиваем контент в зависимости от цветового режима
                 List<Node> pagesToPrint = new ArrayList<>();
+
+                // --- НАЧАЛО ИЗМЕНЕНИЙ: адаптация для BorderPane ---
                 for (Node page : pages) {
-                    if (!colorMode && page instanceof TextFlow) {
-                        pagesToPrint.add(createBwCopy((TextFlow) page));
+                    if (!colorMode && page instanceof BorderPane pagePane) {
+                        if (pagePane.getCenter() instanceof TextFlow textFlow) {
+                            TextFlow bwTextFlow = createBwCopy(textFlow);
+                            // Создаем копию страницы с Ч/Б текстом, но сохраняем заголовок
+                            BorderPane bwPage = new BorderPane();
+                            bwPage.setTop(pagePane.getTop()); // Используем существующий заголовок
+                            bwPage.setCenter(bwTextFlow);
+                            pagesToPrint.add(bwPage);
+                        }
                     } else {
                         pagesToPrint.add(page);
                     }
                 }
-                // Получаем настройки задания печати
+                // --- КОНЕЦ ИЗМЕНЕНИЙ ---
+
                 JobSettings settings = job.getJobSettings();
-
-                // Правильно получаем диапазоны страниц как массив
                 PageRange[] pageRanges = settings.getPageRanges();
-
                 boolean success = true;
 
-                // Если указаны диапазоны страниц
                 if (pageRanges != null && pageRanges.length > 0) {
-                    // Создаем множество номеров страниц для печати
                     Set<Integer> pagesToPrintIndices = new HashSet<>();
-
-                    // Добавляем все страницы из выбранных диапазонов
                     for (PageRange range : pageRanges) {
-                        int start = range.getStartPage();
-                        int end = range.getEndPage();
-
-                        // Добавляем все страницы из этого диапазона (с коррекцией индекса)
-                        for (int page = start; page <= end; page++) {
-                            // JavaFX использует 1-based индексы, а наш список 0-based
+                        for (int page = range.getStartPage(); page <= range.getEndPage(); page++) {
                             pagesToPrintIndices.add(page - 1);
                         }
                     }
-
-                    // Печатаем только указанные страницы в порядке возрастания
                     List<Integer> sortedIndices = new ArrayList<>(pagesToPrintIndices);
                     Collections.sort(sortedIndices);
-
                     for (int index : sortedIndices) {
                         if (index >= 0 && index < pagesToPrint.size()) {
                             success = success && job.printPage(pageLayout, pagesToPrint.get(index));
                         }
                     }
                 } else {
-                    // Диапазоны не указаны - печатаем все страницы
-                    for (Node page : pagesToPrint) {
-                        success = success && job.printPage(pageLayout, page);
+                    for (Node pageNode : pagesToPrint) {
+                        success = success && job.printPage(pageLayout, pageNode);
                     }
                 }
-                // Завершаем задание печати
+
                 if (success) {
                     job.endJob();
                     showAlert(AlertType.INFORMATION, "Информация", "Печать",
@@ -943,6 +920,66 @@ public class HelloController {
                         "Произошла ошибка: " + e.getMessage());
             }
         }
+    }
+
+    /**
+     * Вспомогательный метод: создает готовую панель страницы с заголовком и футером.
+     */
+    private BorderPane createPagePane(int pageNumber, List<Node> nodes, PageLayout pageLayout) {
+        TextFlow content = new TextFlow();
+        // ВАЖНО: Клонируем узлы, чтобы избежать ошибки "ребенок уже имеет родителя"
+        for (Node node : nodes) {
+            content.getChildren().add(cloneNode(node));
+        }
+        content.setPrefWidth(pageLayout.getPrintableWidth());
+
+        Text headerText = new Text(this.counterpartyName);
+        headerText.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
+        StackPane headerPane = new StackPane(headerText);
+        headerPane.setAlignment(Pos.CENTER);
+        headerPane.setPadding(new Insets(5, 0, 15, 0));
+
+        Label pageNumberLabel = new Label("Страница " + pageNumber);
+        pageNumberLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #888888;");
+        StackPane footerPane = new StackPane(pageNumberLabel);
+        footerPane.setAlignment(Pos.CENTER_RIGHT);
+        footerPane.setPadding(new Insets(5, 10, 5, 0));
+
+        BorderPane pageLayoutPane = new BorderPane();
+        pageLayoutPane.setPrefSize(pageLayout.getPrintableWidth(), pageLayout.getPrintableHeight());
+        pageLayoutPane.setTop(headerPane);
+        pageLayoutPane.setCenter(content);
+        pageLayoutPane.setBottom(footerPane);
+        return pageLayoutPane;
+    }
+
+    /**
+     * Вспомогательный метод: вычисляет реальную высоту TextFlow с заданным содержимым.
+     */
+    private double calculateFlowHeight(List<Node> nodes, double width) {
+        TextFlow tempFlow = new TextFlow();
+        // Клонируем узлы для "примерки"
+        for (Node node : nodes) {
+            tempFlow.getChildren().add(cloneNode(node));
+        }
+        tempFlow.setPrefWidth(width);
+        // "Магия" для форсирования расчета размеров
+        new Scene(new Group(tempFlow));
+        tempFlow.applyCss();
+        tempFlow.layout();
+        return tempFlow.getBoundsInLocal().getHeight();
+    }
+
+    /**
+     * Вспомогательный метод: создает клон узла (конкретно для Text).
+     */
+    private Node cloneNode(Node node) {
+        if (node instanceof Text originalText) {
+            Text clonedText = new Text(originalText.getText());
+            clonedText.setStyle(originalText.getStyle());
+            return clonedText;
+        }
+        return new Text(); // Заглушка на случай другого типа узла
     }
 
     /**

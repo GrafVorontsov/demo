@@ -94,6 +94,10 @@ public class ChangeLog {
         addChange("7.1.0", List.of(
                 "Добавлен Приход-Расход для \"Арсенал\""
         ), Color.web("#C7C7C7"), null);
+        addChange("7.2.0", List.of(
+                "Вывод на печать название организации",
+                "Коррекция разметки при печати"
+        ), Color.web("#C7C7C7"), null);
     }
 
     public static List<ChangeEntry> getChanges() {

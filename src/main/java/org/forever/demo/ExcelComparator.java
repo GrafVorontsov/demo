@@ -320,85 +320,7 @@ public class ExcelComparator {
         }
         return fileData;
     }
-    /*
-    private static Map<String, List<List<String>>> parseDebitCreditFile(Workbook workbook) {
-        Map<String, List<List<String>>> fileData = new LinkedHashMap<>();
-        Sheet sheet = workbook.getSheetAt(0);
-        int startRowIndex = -1;
-        int saldoColumnIndex = -1;
 
-        // Ваш оригинальный, работающий поиск заголовков.
-        for (Row row : sheet) {
-            boolean containsDebit = false;
-            boolean containsCredit = false;
-            for (Cell cell : row) {
-                String value = getCellValueAsString(cell).trim();
-                if (value.equalsIgnoreCase("Дебет")) containsDebit = true;
-                if (value.equalsIgnoreCase("Кредит")) containsCredit = true;
-                if (value.equalsIgnoreCase("Сальдо")) {
-                    saldoColumnIndex = cell.getColumnIndex();
-                }
-            }
-            if (containsDebit && containsCredit) {
-                startRowIndex = row.getRowNum() + 1;
-                break;
-            }
-        }
-
-        if (startRowIndex == -1) {
-            return fileData;
-        }
-
-        Pattern shortDatePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{2}");
-        Pattern longDatePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
-
-        for (int i = startRowIndex; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
-
-            if (row == null || isRowEmpty(row) || containsSummary(row)) {
-                break;
-            }
-
-            List<String> allNonEmptyCells = new ArrayList<>();
-            String potentialDate = null;
-
-            for (Cell cell : row) {
-                if (saldoColumnIndex != -1 && cell.getColumnIndex() == saldoColumnIndex) {
-                    continue;
-                }
-                String value = getCellValueAsString(cell).trim();
-                if (!value.isEmpty()) {
-                    allNonEmptyCells.add(value);
-
-                    if (potentialDate == null) {
-                        Matcher longMatcher = longDatePattern.matcher(value);
-                        if (longMatcher.find()) {
-                            potentialDate = longMatcher.group();
-                        } else {
-                            Matcher shortMatcher = shortDatePattern.matcher(value);
-                            if (shortMatcher.find()) {
-                                potentialDate = convertToFullYear(shortMatcher.group());
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (potentialDate != null && !allNonEmptyCells.isEmpty()) {
-                // --- ВОТ ОНО, ФИНАЛЬНОЕ ИЗМЕНЕНИЕ ---
-                // Если первый элемент похож на порядковый номер и в строке есть другие данные, удаляем его.
-                if (allNonEmptyCells.size() > 1 && isSequentialNumber(allNonEmptyCells.getFirst())) {
-                    allNonEmptyCells.removeFirst();
-                }
-                // --- КОНЕЦ ИЗМЕНЕНИЯ ---
-
-                fileData.computeIfAbsent(potentialDate, _ -> new ArrayList<>()).add(allNonEmptyCells);
-            }
-        }
-
-        return fileData;
-    }
-*/
     private static Map<String, List<List<String>>> parseAiS(Workbook workbook) {
         Map<String, List<List<String>>> fileData = new HashMap<>();
         Sheet sheet = workbook.getSheetAt(0);
@@ -442,7 +364,7 @@ public class ExcelComparator {
                     break;
                 }
             }
-            if(isSummaryRow) break; // Если это итоговая строка, прерываем парсинг
+            if (isSummaryRow) break; // Если это итоговая строка, прерываем парсинг
 
 
             List<String> rowData = new ArrayList<>();
@@ -476,7 +398,7 @@ public class ExcelComparator {
             if (rowData.getFirst().toLowerCase().contains("сальдо на")) {
                 // Пытаемся извлечь дату из строки "Сальдо на..."
                 Matcher m = datePattern.matcher(rowData.getFirst());
-                if(m.find()) {
+                if (m.find()) {
                     dateKey = convertToFullYear(m.group());
                 }
             }
@@ -489,84 +411,84 @@ public class ExcelComparator {
         return fileData;
     }
 
-private static Map<String, List<List<String>>> parsePrihodRashodFile(Workbook workbook) {
-    Map<String, List<List<String>>> fileData = new HashMap<>();
-    Sheet sheet = workbook.getSheetAt(0);
+    private static Map<String, List<List<String>>> parsePrihodRashodFile(Workbook workbook) {
+        Map<String, List<List<String>>> fileData = new HashMap<>();
+        Sheet sheet = workbook.getSheetAt(0);
 
-    // --- НАХОДИМ ВСЕ НУЖНЫЕ И НЕНУЖНЫЕ КОЛОНКИ ---
-    int nachOstatokIndex = -1; // Индекс колонки "нач. остаток"
-    int konOstatokIndex = -1;  // Индекс колонки "кон. остаток"
-    int prichodIndex = -1;     // Индекс "приход" для проверки
-    int rashodIndex = -1;      // Индекс "расход" для проверки
-    int dateIndex = -1;        // Индекс колонки с датой
-    int headerRow = -1;
+        // --- НАХОДИМ ВСЕ НУЖНЫЕ И НЕНУЖНЫЕ КОЛОНКИ ---
+        int nachOstatokIndex = -1; // Индекс колонки "нач. остаток"
+        int konOstatokIndex = -1;  // Индекс колонки "кон. остаток"
+        int prichodIndex = -1;     // Индекс "приход" для проверки
+        int rashodIndex = -1;      // Индекс "расход" для проверки
+        int dateIndex = -1;        // Индекс колонки с датой
+        int headerRow = -1;
 
-    // Ищем строку с заголовками
-    for (Row row : sheet) {
-        if (row == null) continue;
-        for (Cell cell : row) {
-            String value = getCellValueAsString(cell).trim().toLowerCase();
-            if (value.contains("нач. остаток")) nachOstatokIndex = cell.getColumnIndex();
-            if (value.contains("кон. остаток")) konOstatokIndex = cell.getColumnIndex();
-            if (value.equals("приход")) prichodIndex = cell.getColumnIndex();
-            if (value.equals("расход")) rashodIndex = cell.getColumnIndex();
-            // Дату ищем в колонке под "Период" или "Договор"
-            if (value.contains("период") || value.contains("договор")) dateIndex = cell.getColumnIndex();
-        }
-        // Нам достаточно найти хотя бы приход/расход, чтобы понять, где заголовки
-        if (prichodIndex != -1 && rashodIndex != -1 && dateIndex != -1) {
-            headerRow = row.getRowNum();
-            break;
-        }
-    }
-
-    if (headerRow == -1) {
-        return fileData; // Не нашли ключевые заголовки
-    }
-
-    Pattern datePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
-
-    for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
-        Row row = sheet.getRow(i);
-        if (row == null || isRowEmpty(row) || containsSummary(row)) {
-            continue;
+        // Ищем строку с заголовками
+        for (Row row : sheet) {
+            if (row == null) continue;
+            for (Cell cell : row) {
+                String value = getCellValueAsString(cell).trim().toLowerCase();
+                if (value.contains("нач. остаток")) nachOstatokIndex = cell.getColumnIndex();
+                if (value.contains("кон. остаток")) konOstatokIndex = cell.getColumnIndex();
+                if (value.equals("приход")) prichodIndex = cell.getColumnIndex();
+                if (value.equals("расход")) rashodIndex = cell.getColumnIndex();
+                // Дату ищем в колонке под "Период" или "Договор"
+                if (value.contains("период") || value.contains("договор")) dateIndex = cell.getColumnIndex();
+            }
+            // Нам достаточно найти хотя бы приход/расход, чтобы понять, где заголовки
+            if (prichodIndex != -1 && rashodIndex != -1 && dateIndex != -1) {
+                headerRow = row.getRowNum();
+                break;
+            }
         }
 
-        // Проверяем, что это строка с операцией (есть число в приходе/расходе)
-        String prihodValue = getCellValueAsString(row.getCell(prichodIndex));
-        String rashodValue = getCellValueAsString(row.getCell(rashodIndex));
+        if (headerRow == -1) {
+            return fileData; // Не нашли ключевые заголовки
+        }
 
-        if (isNumeric(prihodValue) || isNumeric(rashodValue)) {
+        Pattern datePattern = Pattern.compile("\\d{2}\\.\\d{2}\\.\\d{4}");
 
-            // Если да, ищем дату в ключевой колонке
-            String dateValue = getCellValueAsString(row.getCell(dateIndex));
-            Matcher m = datePattern.matcher(dateValue);
+        for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row == null || isRowEmpty(row) || containsSummary(row)) {
+                continue;
+            }
 
-            if (m.find()) {
-                String dateKey = m.group();
-                List<String> rowData = new ArrayList<>();
+            // Проверяем, что это строка с операцией (есть число в приходе/расходе)
+            String prihodValue = getCellValueAsString(row.getCell(prichodIndex));
+            String rashodValue = getCellValueAsString(row.getCell(rashodIndex));
 
-                // --- ВОТ ОНО, РЕШЕНИЕ! ---
-                // Собираем все ячейки, КРОМЕ тех, что в ненужных колонках.
-                for (Cell cell : row) {
-                    int currentColumnIndex = cell.getColumnIndex();
-                    if (currentColumnIndex == nachOstatokIndex || currentColumnIndex == konOstatokIndex) {
-                        continue; // Пропускаем колонки "нач. остаток" и "кон. остаток"
+            if (isNumeric(prihodValue) || isNumeric(rashodValue)) {
+
+                // Если да, ищем дату в ключевой колонке
+                String dateValue = getCellValueAsString(row.getCell(dateIndex));
+                Matcher m = datePattern.matcher(dateValue);
+
+                if (m.find()) {
+                    String dateKey = m.group();
+                    List<String> rowData = new ArrayList<>();
+
+                    // --- ВОТ ОНО, РЕШЕНИЕ! ---
+                    // Собираем все ячейки, КРОМЕ тех, что в ненужных колонках.
+                    for (Cell cell : row) {
+                        int currentColumnIndex = cell.getColumnIndex();
+                        if (currentColumnIndex == nachOstatokIndex || currentColumnIndex == konOstatokIndex) {
+                            continue; // Пропускаем колонки "нач. остаток" и "кон. остаток"
+                        }
+                        String cellValue = getCellValueAsString(cell).trim();
+                        if (!cellValue.isEmpty()) {
+                            rowData.add(cellValue);
+                        }
                     }
-                    String cellValue = getCellValueAsString(cell).trim();
-                    if (!cellValue.isEmpty()) {
-                        rowData.add(cellValue);
-                    }
-                }
 
-                if (!rowData.isEmpty()) {
-                    fileData.computeIfAbsent(dateKey, _ -> new ArrayList<>()).add(rowData);
+                    if (!rowData.isEmpty()) {
+                        fileData.computeIfAbsent(dateKey, _ -> new ArrayList<>()).add(rowData);
+                    }
                 }
             }
         }
+        return fileData;
     }
-    return fileData;
-}
 
     // Вспомогательный метод для получения значения ячейки как строки
     private static String getCellValueAsString(Cell cell) {
@@ -1358,5 +1280,118 @@ private static Map<String, List<List<String>>> parsePrihodRashodFile(Workbook wo
             return false;
         }
         return false;
+    }
+
+    /**
+     * Финальная обработка найденного имени: удаление мусора и извлечение из кавычек.
+     * @param rawName Исходное имя из ячейки.
+     * @return Чистое, короткое имя.
+     */
+    private static String finalizeCounterpartyName(String rawName) {
+        if (rawName == null || rawName.isEmpty()) {
+            return null;
+        }
+
+        // Шаг 1: Удаляем все символы подчеркивания и лишние пробелы.
+        String cleanedName = rawName.replace("_", "").trim();
+
+        // Шаг 2: Ищем текст в кавычках. Это наш главный приоритет.
+        Pattern pattern = Pattern.compile("\"([^\"]*)\"");
+        Matcher matcher = pattern.matcher(cleanedName);
+
+        if (matcher.find()) {
+            // Если нашли что-то в кавычках, возвращаем именно это.
+            return matcher.group(1).trim();
+        }
+
+        // Шаг 3 (Резервный вариант): Если кавычек нет, возвращаем просто очищенную строку.
+        // Это может быть полезно для названий вроде "АВАНТА-ТРЕЙД" без полного наименования.
+        return cleanedName;
+    }
+
+    /**
+     * Ищет наименование контрагента в предоставленных файлах.
+     * Проверяет файлы поочередно и возвращает первое найденное совпадение.
+     * @param files Массив из двух файлов для проверки.
+     * @return Наименование контрагента или "КОНТРАГЕНТ НЕ НАЙДЕН".
+     */
+    public static String findCounterpartyName(File[] files) {
+        for (File file : files) {
+            if (file == null) continue;
+            try (InputStream is = new FileInputStream(file);
+                 Workbook workbook = WorkbookFactory.create(is)) {
+
+                Sheet sheet = workbook.getSheetAt(0);
+                String foundName = findNameInSheet(sheet);
+                if (foundName != null && !foundName.isEmpty()) {
+                    return foundName; // Если имя найдено, сразу возвращаем его
+                }
+
+            } catch (Exception e) {
+                // Игнорируем ошибки при чтении файла для поиска имени, чтобы не прерывать основной процесс
+                System.err.println("Не удалось прочитать файл для поиска контрагента: " + file.getName());
+            }
+        }
+        return "КОНТРАГЕНТ НЕ НАЙДЕН"; // Возвращаем, если ничего не нашли
+    }
+
+    /**
+     * Вспомогательный метод для поиска имени на конкретном листе Excel.
+     */
+    private static String findNameInSheet(Sheet sheet) {
+        for (int i = 0; i < 25 && i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row == null) continue;
+            for (Cell cell : row) {
+                String cellValue = getCellValueAsString(cell).trim();
+                if (cellValue.contains("АКТ ЗВІРКИ")) {
+                    return parseAktZvirky(sheet);
+                }
+                if (cellValue.contains("Прибуткова накладна")) {
+                    return parseNakladna(sheet);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Парсит лист Excel, который является "Актом сверки".
+     */
+    private static String parseAktZvirky(Sheet sheet) {
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue.contains("СМК ГРУП") && (cellValue.contains(" і ") || cellValue.contains(" та ") || cellValue.contains(" и "))) {
+                    String[] parts = cellValue.split("\\s+(і|та|и)\\s+", 2);
+                    if (parts.length == 2) {
+                        String potentialName = parts[0].contains("СМК ГРУП") ? parts[1] : parts[0];
+                        // ОТПРАВЛЯЕМ НА ФИНАЛЬНУЮ ОЧИСТКУ
+                        return finalizeCounterpartyName(potentialName);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Парсит лист Excel, который является "Приходной накладной".
+     */
+    private static String parseNakladna(Sheet sheet) {
+        for (Row row : sheet) {
+            for (int c = 0; c < row.getLastCellNum(); c++) {
+                Cell cell = row.getCell(c);
+                if (cell != null && getCellValueAsString(cell).contains("Постачальник:")) {
+                    Cell nameCell = row.getCell(c + 1);
+                    if (nameCell != null) {
+                        String fullName = getCellValueAsString(nameCell);
+                        // ОТПРАВЛЯЕМ НА ФИНАЛЬНУЮ ОЧИСТКУ
+                        return finalizeCounterpartyName(fullName);
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

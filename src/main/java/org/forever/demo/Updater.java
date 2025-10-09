@@ -2,15 +2,12 @@ package org.forever.demo;
 
 import java.io.*;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.*;
 
@@ -416,7 +413,56 @@ public class Updater {
             return String.format("%.2f МБ", size / (1024.0 * 1024));
         }
     }
+    private static String getLatestVersion() {
+        logger.info("Запрос к URL для проверки версии.");
 
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(VERSION_URL))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("User-Agent", "Mozilla/5.0")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            int statusCode = response.statusCode();
+            logger.info("Код ответа для version.txt: " + statusCode);
+
+            if (statusCode != 200) {
+                logger.severe("Ошибка получения version.txt: HTTP " + statusCode);
+                return null;
+            }
+
+            String responseBody = response.body();
+            if (responseBody != null && !responseBody.isEmpty()) {
+                String version = responseBody.lines()
+                        .map(String::trim)
+                        .filter(line -> !line.isEmpty())
+                        .findFirst()
+                        .orElse("");
+
+                if (!version.isEmpty()) {
+                    logger.info("Получена версия: " + version);
+                    return version;
+                } else {
+                    logger.warning("Файл version.txt не содержит непустых строк");
+                    return null;
+                }
+            } else {
+                logger.warning("Файл version.txt пуст");
+                return null;
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Ошибка при получении последней версии", e);
+            return null;
+        }
+    }
+/*
     private static String getLatestVersion() {
         //logger.info("Запрос к URL для проверки версии: " + VERSION_URL);
         logger.info("Запрос к URL для проверки версии.");
@@ -458,18 +504,23 @@ public class Updater {
             return null;
         }
     }
+*/
+private static String getCurrentVersion() {
+    try {
+        HelloController controller = new HelloController();
+        String version = controller.getApplicationVersion();
 
-    private static String getCurrentVersion() {
-        try {
-            HelloController controller = new HelloController();
-            String version = controller.getApplicationVersion();
-            logger.info("Текущая версия приложения: " + version);
-            return version;
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Ошибка при получении текущей версии", e);
-            return null;
+        if (version != null) {
+            version = version.trim();
         }
+
+        logger.info("Текущая версия приложения: " + version);
+        return version;
+    } catch (Exception e) {
+        logger.log(Level.SEVERE, "Ошибка при получении текущей версии", e);
+        return null;
     }
+}
 
     // Проверка, что файл действительно является корректным JAR
     private static boolean verifyJarFile(File jar) {
