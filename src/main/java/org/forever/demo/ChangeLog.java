@@ -98,6 +98,9 @@ public class ChangeLog {
                 "Вывод на печать название организации",
                 "Коррекция разметки при печати"
         ), Color.web("#C7C7C7"), null);
+        addChange("7.2.1", List.of(
+                "BugFix"
+        ), Color.web("#C7C7C7"), null);
     }
 
     public static List<ChangeEntry> getChanges() {

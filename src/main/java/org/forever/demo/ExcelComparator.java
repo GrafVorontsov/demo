@@ -1295,8 +1295,10 @@ public class ExcelComparator {
         // Шаг 1: Удаляем все символы подчеркивания и лишние пробелы.
         String cleanedName = rawName.replace("_", "").trim();
 
-        // Шаг 2: Ищем текст в кавычках. Это наш главный приоритет.
-        Pattern pattern = Pattern.compile("\"([^\"]*)\"");
+        // Шаг 2: Ищем текст в кавычках (теперь в ЛЮБЫХ: "..." или «...»).
+        // СТАРАЯ ВЕРСИЯ: Pattern pattern = Pattern.compile("\"([^\"]*)\"");
+        // НОВАЯ ВЕРСИЯ:
+        Pattern pattern = Pattern.compile("[\"«](.*?)[\"»]");
         Matcher matcher = pattern.matcher(cleanedName);
 
         if (matcher.find()) {
@@ -1305,7 +1307,6 @@ public class ExcelComparator {
         }
 
         // Шаг 3 (Резервный вариант): Если кавычек нет, возвращаем просто очищенную строку.
-        // Это может быть полезно для названий вроде "АВАНТА-ТРЕЙД" без полного наименования.
         return cleanedName;
     }
 

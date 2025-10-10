@@ -190,7 +190,7 @@ public class HelloController {
 
     public String getApplicationVersion() {
         // Получение версии из свойств, манифеста или константы
-        return "7.2.0";
+        return "7.2.1";
     }
 
     // Method to update the compare button state
